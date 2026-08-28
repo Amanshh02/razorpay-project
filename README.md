@@ -80,11 +80,20 @@ expected_settlement =
       payment_amount
     − razorpay_fee
     − gst_on_fee
-    − refunds
-    − chargebacks
 ```
 
 Anything outside a configurable tolerance (default ₹1) is flagged.
+
+Refunds and chargebacks are deliberately **not** terms in this
+formula. No ledger records them — a refund or chargeback is what an
+unexplained negative delta turns out to *be*, inferred downstream by
+the classifier. Subtracting them here would mean subtracting the very
+quantity being detected.
+
+For an order with no payment record at all, there is no fee to deduct
+and expected recovery is the full `gross_amount_paise`. Full
+derivation, verified against the fixtures, is in
+[`docs/data-model.md`](docs/data-model.md).
 
 ## Running it
 
