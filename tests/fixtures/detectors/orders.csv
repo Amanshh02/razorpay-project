@@ -1,0 +1,7 @@
+order_id,order_date,customer_id,net_amount_paise,gst_amount_paise,gross_amount_paise,payment_id,status
+ord_clean_01,2026-03-01 10:00:00,cust_9001,1000000,180000,1180000,pay_clean_01,paid
+ord_refund_30,2026-03-02 10:00:00,cust_9002,2000000,360000,2360000,pay_refund_30,paid
+ord_refund_22,2026-03-03 10:00:00,cust_9003,1500000,270000,1770000,pay_refund_22,paid
+ord_chargeback_01,2026-03-04 10:00:00,cust_9004,800000,144000,944000,pay_chargeback_01,paid
+ord_small_gap,2026-03-05 10:00:00,cust_9005,500000,90000,590000,pay_small_gap,paid
+ord_tolerance_edge,2026-03-06 10:00:00,cust_9006,300000,54000,354000,pay_tolerance_edge,paid

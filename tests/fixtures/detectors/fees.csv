@@ -1,0 +1,7 @@
+payment_id,fee_paise,gst_on_fee_paise,total_deduction_paise
+pay_clean_01,23600,4248,27848
+pay_refund_30,47200,8496,55696
+pay_refund_22,35400,6372,41772
+pay_chargeback_01,18880,3398,22278
+pay_small_gap,11800,2124,13924
+pay_tolerance_edge,7080,1274,8354

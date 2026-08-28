@@ -1,0 +1,7 @@
+payment_id,order_id,captured_at,amount_paise,method,status
+pay_clean_01,ord_clean_01,2026-03-01 10:30:00,1180000,card,captured
+pay_refund_30,ord_refund_30,2026-03-02 10:30:00,2360000,upi,captured
+pay_refund_22,ord_refund_22,2026-03-03 10:30:00,1770000,netbanking,captured
+pay_chargeback_01,ord_chargeback_01,2026-03-04 10:30:00,944000,card,captured
+pay_small_gap,ord_small_gap,2026-03-05 10:30:00,590000,wallet,captured
+pay_tolerance_edge,ord_tolerance_edge,2026-03-06 10:30:00,354000,upi,captured

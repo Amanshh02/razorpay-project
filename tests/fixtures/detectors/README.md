@@ -1,0 +1,30 @@
+# Detector fixtures
+
+**These are hand-built test fixtures, not real data and not the eval
+set.** They live in their own directory so the labelled 130-order eval
+fixtures at `tests/fixtures/` stay exactly as they are. Nothing here is
+read by `evals/run_eval.py`.
+
+Six orders, each constructed to exercise one branch of the stage 4
+detectors. Every row is internally consistent: `net + gst == gross`,
+`payment.amount == order.gross`, `fee + gst_on_fee == total_deduction`,
+and the settlement is `expected − shortfall` where
+`expected = payment − total_deduction`.
+
+| Order | Shortfall | As % of payment | Expected result |
+|---|---|---|---|
+| `ord_clean_01` | 0 | 0% | No flag. Negative fixture for both detectors. |
+| `ord_refund_30` | 708000 | 30% | Refund, **high** confidence. |
+| `ord_refund_22` | 389400 | 22% | Refund, **medium** confidence — sits in the 0.20–0.25 grey zone. |
+| `ord_chargeback_01` | 994000 | 105.3% | Chargeback: full reversal plus the ₹500 fee. Settlement is negative. |
+| `ord_small_gap` | 17700 | 3% | Below the refund threshold — `unexplained_negative_delta`, **not** a refund. |
+| `ord_tolerance_edge` | 50 | 0.01% | Within the 100-paise tolerance. No flag. |
+
+`ord_refund_22` exists because the real fixture set contains no refund
+in the 0.20–0.25 band at all — every genuine refund there is at 25% or
+above. Without this row the medium-confidence branch would never be
+exercised.
+
+`ord_chargeback_01` settles to **−72278 paise**. A chargeback can drive
+a payout negative, and the loaders and detectors must carry the sign
+through rather than clamping at zero.
