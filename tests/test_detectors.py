@@ -118,18 +118,18 @@ def test_delta_is_actual_minus_expected(detector, bench):
 # Refunds and chargebacks (stage 4, still passing)
 # --------------------------------------------------------------------
 
-def test_refund_positive_high_confidence(bench):
+def test_refund_clear_of_boundary_is_medium_confidence(bench):
     row = detect_refunds(bench).set_index("order_id").loc["ord_refund_30"]
     assert row["anomaly_type"] == REFUND_NOT_REFLECTED
-    assert row["confidence"] == HIGH
+    assert row["confidence"] == MEDIUM
     assert row["delta_paise"] == -708000
     assert row["expected_amount_paise"] == 2304304
     assert row["actual_amount_paise"] == 1596304
 
 
-def test_refund_positive_medium_confidence_in_grey_zone(bench):
+def test_refund_near_boundary_is_low_confidence(bench):
     row = detect_refunds(bench).set_index("order_id").loc["ord_refund_22"]
-    assert row["confidence"] == MEDIUM
+    assert row["confidence"] == LOW
     assert row["delta_paise"] == -371700
     assert "grey zone" in row["reason"]
 
@@ -201,13 +201,61 @@ def test_shortfall_never_high_confidence(bench, real):
 
 
 # --------------------------------------------------------------------
+# Confidence rates signature sharpness, not threshold distance
+# --------------------------------------------------------------------
+
+THRESHOLD_DETECTORS = [detect_refunds, detect_settlement_shortfalls]
+SHARP_DETECTORS = [detect_chargebacks, detect_overpayments]
+
+
+@pytest.mark.parametrize("detector", THRESHOLD_DETECTORS)
+def test_threshold_calls_are_never_high_confidence(detector, bench, real):
+    """Refunds and shortfalls are guesses on a continuum, however large."""
+    for frame in (bench, real):
+        assert HIGH not in set(detector(frame)["confidence"])
+
+
+@pytest.mark.parametrize("detector", SHARP_DETECTORS)
+def test_sharp_signatures_are_always_high_confidence(detector, bench, real):
+    """These match an arithmetic identity or they do not."""
+    for frame in (bench, real):
+        levels = set(detector(frame)["confidence"])
+        assert levels <= {HIGH}, levels
+
+
+def test_missing_payment_is_always_high_confidence(bench_match, bench_orders,
+                                                   real_match, real_orders):
+    for unreconciled, orders in ((bench_match.unreconciled, bench_orders),
+                                 (real_match.unreconciled, real_orders)):
+        levels = set(detect_missing_payments(unreconciled, orders)["confidence"])
+        assert levels <= {HIGH}, levels
+
+
+def test_a_huge_refund_ratio_does_not_earn_high_confidence(bench):
+    """The bug this replaced: distance from the line read as certainty.
+
+    A shortfall far larger than the payment is exactly where the refund
+    rule was most wrong on the hard set - chargebacks with a non-standard
+    fee. It must not be the place it is most confident.
+    """
+    frame = bench.copy()
+    target = frame["order_id"] == "ord_clean_01"
+    payment = int(frame.loc[target, "payment_amount_paise"].iloc[0])
+    expected = payment - int(frame.loc[target, "total_deduction_paise"].iloc[0])
+    frame.loc[target, "settlement_amount_paise"] = expected - payment * 2
+
+    row = detect_refunds(frame).set_index("order_id").loc["ord_clean_01"]
+    assert row["confidence"] == MEDIUM
+
+
+# --------------------------------------------------------------------
 # Overpayment
 # --------------------------------------------------------------------
 
 def test_overpayment_positive(bench):
     row = detect_overpayments(bench).set_index("order_id").loc["ord_overpaid"]
     assert row["anomaly_type"] == SETTLEMENT_EXCESS
-    assert row["confidence"] == LOW
+    assert row["confidence"] == HIGH
     assert row["delta_paise"] == 25000
     assert row["expected_amount_paise"] == 691291
     assert row["actual_amount_paise"] == 716291

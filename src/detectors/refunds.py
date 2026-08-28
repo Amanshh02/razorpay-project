@@ -8,12 +8,18 @@ shortfall.
 Nothing in the ledgers distinguishes a large refund from a large
 shortfall, so the split is a magnitude heuristic, not a derivation:
 
-- shortfall >= ``config.REFUND_HIGH_CONFIDENCE_PCT`` of the captured
-  payment -> refund, high confidence
-- shortfall >= ``config.REFUND_THRESHOLD_PCT`` -> refund, medium
-  confidence. This is the grey zone where the rule is weakest.
+- shortfall >= ``config.REFUND_THRESHOLD_PCT`` of the captured payment
+  -> refund
 - below that -> not claimed here at all; see
   ``src.detectors.shortfalls``.
+
+**A refund is never reported at high confidence**, however large the
+shortfall. This is a threshold call on a continuum: a 105% shortfall is
+further from the line than a 25% one but no more certain to be a refund
+rather than a chargeback with an unusual fee. Confidence is medium when
+the ratio is clear of the boundary band and low inside it - see the
+note in config.py on why threshold distance is the wrong thing to
+measure.
 
 Chargebacks also clear the threshold, so they are excluded up front and
 no order can carry both labels.
@@ -26,7 +32,7 @@ import numpy as np
 import config
 
 from ._base import (
-    HIGH,
+    LOW,
     MEDIUM,
     build_findings,
     is_short,
@@ -60,23 +66,22 @@ def detect_refunds(reconciled):
     frame = with_deltas(reconciled)
     hits = frame[refund_mask(frame)].copy()
     if hits.empty:
-        return build_findings(hits, REFUND_NOT_REFLECTED, HIGH, [])
+        return build_findings(hits, REFUND_NOT_REFLECTED, MEDIUM, [])
 
     ratio = shortfall_ratio(hits)
-    confidence = np.where(
-        ratio >= config.REFUND_HIGH_CONFIDENCE_PCT, HIGH, MEDIUM
-    )
+    near_boundary = ratio < config.REFUND_NEAR_THRESHOLD_PCT
+    confidence = np.where(near_boundary, LOW, MEDIUM)
     reasons = [
         f"Payout short by {rupees(-row.delta_paise)}, {pct:.1%} of the "
         f"{rupees(row.payment_amount_paise)} captured, with no refund recorded "
         f"in any ledger. Bank settled {rupees(row.actual_amount_paise)} against "
-        f"an expected {rupees(row.expected_amount_paise)}."
+        f"an expected {rupees(row.expected_amount_paise)}. Read as a refund on "
+        f"size alone; no ledger evidence separates this from a shortfall."
         + (
-            ""
-            if pct >= config.REFUND_HIGH_CONFIDENCE_PCT
-            else " Falls in the grey zone near the refund threshold, so the "
-            "classification is provisional."
+            " The ratio also sits in the grey zone near the refund threshold."
+            if near
+            else ""
         )
-        for row, pct in zip(hits.itertuples(), ratio)
+        for row, pct, near in zip(hits.itertuples(), ratio, near_boundary)
     ]
     return build_findings(hits, REFUND_NOT_REFLECTED, confidence, reasons)

@@ -54,7 +54,7 @@ def _grey_zone_width():
     constant: the band above the threshold and the band below it are the
     same kind of uncertainty, seen from either side.
     """
-    return config.REFUND_HIGH_CONFIDENCE_PCT - config.REFUND_THRESHOLD_PCT
+    return config.REFUND_NEAR_THRESHOLD_PCT - config.REFUND_THRESHOLD_PCT
 
 
 def shortfall_mask(frame):
