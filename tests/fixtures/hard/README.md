@@ -57,6 +57,20 @@ all. Without the two here, the fifth detector would never be scored.
 
 ## Generation
 
-Built by a deterministic script with no randomness; every amount is
-derived from the order's net value. The script is not committed, in
-keeping with the baseline set. The CSVs are the artefact.
+Built by [`tests/gen_hard.py`](../../gen_hard.py), a deterministic
+script with no randomness; every amount is derived from the order's net
+value.
+
+```bash
+python tests/gen_hard.py
+```
+
+Rerunning overwrites these five CSVs with byte-identical content, from
+any working directory. If the output ever differs without the generator
+changing, something is wrong — check that before trusting a new eval
+number.
+
+Editing a CSV here by hand will be silently undone the next time the
+generator runs. Change the `SPEC` table in the generator instead, and
+re-run the eval afterwards: adding or reclassifying a case moves the
+hard-set numbers in the README accuracy table.
