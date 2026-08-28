@@ -117,11 +117,27 @@ Measured against a labelled fixture set of 130 orders containing
 
 | Version | Match rate | Refunds F1 | Chargebacks F1 | Shortfalls F1 | Missing pmts F1 | Notes |
 |---|---|---|---|---|---|---|
-| v0.1 | — | — | — | — | — | rules only, no agent layer |
+| v0.1 | 0.977 | 1.000 | 1.000 | 1.000 | 1.000 | rules only, no agent layer |
 | v0.2 | — | — | — | — | — | + LLM classification |
 
 Recall is the priority metric — a missed discrepancy is money lost,
 a false positive is a human glance.
+
+**Read the v0.1 row with suspicion.** A perfect score on 31 anomalies
+is a statement about the fixtures, not about the detectors. The rules
+were written by inspecting these same four ledgers, and the fixture set
+contains no hard cases: the refund threshold sits in a 6.8-point empty
+band between the largest shortfall (18.18% of the captured payment) and
+the smallest refund (25%). One production export with a 22% refund lands
+in that gap. Two of the five branches — medium-confidence refund and
+overpayment — have no instance here at all and are exercised only by
+hand-built fixtures.
+
+`match rate` is the share of orders joined through the whole ID chain
+(127/130; the three missing payments cannot join past the first link).
+It measures coverage, not detection. The eval also reports
+classification accuracy, 1.000 at v0.1, which is the figure that should
+move as the agent layer lands.
 
 ## Tech stack
 
@@ -162,5 +178,5 @@ reports/      generated output (gitignored)
 - [ ] Stage 4 — refund & chargeback detection
 - [ ] Stage 5 — shortfall & missing payment detection
 - [ ] Stage 6 — agent classification layer
-- [ ] Stage 7 — eval harness
+- [x] Stage 7 — eval harness
 - [ ] Stage 8 — reporting output
