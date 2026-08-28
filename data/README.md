@@ -4,8 +4,9 @@ This directory holds **real merchant CSV exports** — the actual
 ledgers pulled from the merchant's account and from Razorpay.
 
 Everything in here is gitignored and is never committed. The
-`.gitignore` rule is `data/*.csv`; this README is the only file in
-the directory that is tracked.
+`.gitignore` rules are `data/*` and `!data/README.md`, so every file
+dropped in this directory is ignored regardless of extension; this
+README is the only file that is tracked.
 
 Drop the four ledgers here to run the pipeline against real data:
 

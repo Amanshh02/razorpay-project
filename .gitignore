@@ -7,5 +7,6 @@ __pycache__/
 *.pyc
 
 # Local data and generated output
-data/*.csv
+data/*
+!data/README.md
 reports/
