@@ -172,11 +172,11 @@ reports/      generated output (gitignored)
 
 ## Status
 
-- [ ] Stage 1 — project scaffold
-- [ ] Stage 2 — ledger loaders
-- [ ] Stage 3 — matching engine
-- [ ] Stage 4 — refund & chargeback detection
-- [ ] Stage 5 — shortfall & missing payment detection
+- [x] Stage 1 — project scaffold
+- [x] Stage 2 — ledger loaders
+- [x] Stage 3 — matching engine
+- [x] Stage 4 — refund & chargeback detection
+- [x] Stage 5 — shortfall & missing payment detection
 - [ ] Stage 6 — agent classification layer
 - [x] Stage 7 — eval harness
 - [ ] Stage 8 — reporting output
