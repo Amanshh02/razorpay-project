@@ -172,6 +172,12 @@ Every anomaly detector must:
 - Before tagging a version, run the eval, append a row to the
   accuracy table in README.md, and put the version in the commit
   message. Tags are pushed with `git push --tags`.
+- tests/fixtures/ground_truth.csv is the eval answer key. Only
+  evals/run_eval.py may read it. No code under src/ may reference it,
+  import it, open it, or hardcode any value derived from it. If you
+  find yourself reaching for it while writing detection logic, stop
+  and tell me — using it there invalidates every accuracy number we
+  report.
 
 ## 12. Verification before claiming done
 
@@ -187,6 +193,7 @@ Every anomaly detector must:
 - CSVs containing real merchant or transaction data
 - `__pycache__`, `.venv`, `*.pyc`
 - Anything in `data/` except `data/README.md`
+- Any file under src/ that imports or opens ground_truth.csv
 
 If you are about to stage a file matching any of these, stop and
 tell me instead.
