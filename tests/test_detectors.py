@@ -96,7 +96,7 @@ def test_refund_positive_medium_confidence_in_grey_zone(bench):
     findings = detect_refunds(bench).set_index("order_id")
     row = findings.loc["ord_refund_22"]
     assert row["confidence"] == MEDIUM
-    assert row["delta_paise"] == -389400
+    assert row["delta_paise"] == -371700
     assert "grey zone" in row["reason"]
 
 

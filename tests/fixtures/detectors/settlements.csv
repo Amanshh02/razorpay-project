@@ -1,7 +1,7 @@
 settlement_id,payment_id,settled_at,amount_paise,utr,status
 setl_9001_00001,pay_clean_01,2026-03-04 11:30:00,1152152,HDFC1000000001,processed
 setl_9001_00002,pay_refund_30,2026-03-05 11:30:00,1596304,HDFC1000000002,processed
-setl_9001_00003,pay_refund_22,2026-03-06 11:30:00,1338828,HDFC1000000003,processed
+setl_9001_00003,pay_refund_22,2026-03-06 11:30:00,1356528,HDFC1000000003,processed
 setl_9001_00004,pay_chargeback_01,2026-03-07 11:30:00,-72278,HDFC1000000004,processed
 setl_9001_00005,pay_small_gap,2026-03-08 11:30:00,558376,HDFC1000000005,processed
 setl_9001_00006,pay_tolerance_edge,2026-03-09 11:30:00,345596,HDFC1000000006,processed

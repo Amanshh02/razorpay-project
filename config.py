@@ -34,4 +34,11 @@ REFUND_THRESHOLD_PCT = 0.20
 # At or above this fraction the refund call is high confidence; between
 # REFUND_THRESHOLD_PCT and this value it is medium. The band between the
 # two is the grey zone where the rule is least trustworthy.
-REFUND_HIGH_CONFIDENCE_PCT = 0.25
+#
+# This is a narrow MARGIN ABOVE REFUND_THRESHOLD_PCT, not an independent
+# value, and it must stay that way. Real refunds cluster on round
+# percentages - 25, 30, 50, 100 - and a boundary sitting on a cluster
+# point gets decided by rounding noise rather than by the data: an exact
+# 25% refund can compute to 0.2499999 and flip to the wrong side. Keep
+# this just above the threshold, clear of any common refund percentage.
+REFUND_HIGH_CONFIDENCE_PCT = 0.22
