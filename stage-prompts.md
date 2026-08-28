@@ -95,12 +95,13 @@ prevents most of the errors you'd otherwise hit later.*
 
 ## Stage 7 — eval harness
 
-> Build stage 7 only: `evals/run_eval.py`. Create a labelled fixture
-> set of 200 synthetic orders in `tests/fixtures/` containing exactly
-> 15 refunds, 5 chargebacks, 8 shortfalls, and 3 missing payments,
-> with a ground-truth labels file. The harness runs the full pipeline
-> against it and prints precision, recall, and F1 per anomaly type
-> plus overall match rate. Run it and paste the real output. Then fill
+> Build stage 7 only: evals/run_eval.py. The labelled fixtures already
+> exist in tests/fixtures/ (130 orders, with ground_truth.csv as the
+> answer key). Read them, don't regenerate them. The harness runs the
+> full pipeline against the four ledger CSVs and scores its output
+> against ground_truth.csv, printing precision, recall, and F1 per
+> anomaly type plus overall match rate. Only evals/run_eval.py may
+> read ground_truth.csv. Run it and paste the real output. Then fill
 > the v0.1 row in the README accuracy table with those actual numbers.
 > Show me the diff before committing. Once I approve, commit and push,
 > then report the result.
@@ -121,7 +122,7 @@ prevents most of the errors you'd otherwise hit later.*
 ## Tagging a version
 
 > Run the eval, append the results row to the README accuracy table
-> as v0.2, commit, then tag v0.2 and push tags.
+> as v0.2, commit and push, then tag v0.2 and push tags.
 
 ---
 
