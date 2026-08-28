@@ -1,7 +1,7 @@
 order_id,payment_id,anomaly_type,expected_amount_paise,actual_amount_paise,delta_paise,notes
 ord_00001,pay_00001,settlement_shortfall,2256847,2186389,-70458,bank credit below expected payout with no fee or refund explanation
 ord_00002,pay_00002,refund_not_reflected,5223548,3618607,-1604941,partial refund (30%) deducted from payout; not in merchant ledger
-ord_00006,pay_00006,payment_not_received,1440964,0,-1440964,merchant marked order paid; no record in payments.csv
+ord_00006,pay_00006,payment_not_received,1475793,0,-1475793,merchant marked order paid; no record in payments.csv
 ord_00008,pay_00008,refund_not_reflected,5065432,-122433,-5187865,full refund deducted from payout; no refund row in merchant ledger
 ord_00011,pay_00011,settlement_shortfall,137130,111604,-25526,bank credit below expected payout with no fee or refund explanation
 ord_00021,pay_00021,refund_not_reflected,93191,-2253,-95444,full refund deducted from payout; no refund row in merchant ledger
@@ -14,9 +14,9 @@ ord_00049,pay_00049,refund_not_reflected,5516981,3821882,-1695099,partial refund
 ord_00052,pay_00052,settlement_shortfall,1664209,1660858,-3351,bank credit below expected payout with no fee or refund explanation
 ord_00053,pay_00053,settlement_shortfall,67921,65774,-2147,bank credit below expected payout with no fee or refund explanation
 ord_00063,pay_00063,refund_not_reflected,2656432,1976272,-680160,partial refund (25%) deducted from payout; not in merchant ledger
-ord_00065,pay_00065,payment_not_received,1936285,0,-1936285,merchant marked order paid; no record in payments.csv
+ord_00065,pay_00065,payment_not_received,1983086,0,-1983086,merchant marked order paid; no record in payments.csv
 ord_00066,pay_00066,refund_not_reflected,2740556,-66240,-2806796,full refund deducted from payout; no refund row in merchant ledger
-ord_00067,pay_00067,payment_not_received,5256452,0,-5256452,merchant marked order paid; no record in payments.csv
+ord_00067,pay_00067,payment_not_received,5383503,0,-5383503,merchant marked order paid; no record in payments.csv
 ord_00077,pay_00077,refund_not_reflected,3092156,2300432,-791724,partial refund (25%) deducted from payout; not in merchant ledger
 ord_00090,pay_00090,refund_not_reflected,1042796,-25205,-1068001,full refund deducted from payout; no refund row in merchant ledger
 ord_00091,pay_00091,refund_not_reflected,4480162,-108287,-4588449,full refund deducted from payout; no refund row in merchant ledger
