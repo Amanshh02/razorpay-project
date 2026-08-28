@@ -1,0 +1,7 @@
+pandas
+pytest
+
+# Windows ships no system timezone database, so stdlib zoneinfo cannot
+# resolve config.TIMEZONE without this. Verified: zoneinfo.TZPATH is
+# empty and available_timezones() returns 0 on this machine.
+tzdata

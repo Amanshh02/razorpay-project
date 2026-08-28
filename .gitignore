@@ -9,4 +9,5 @@ __pycache__/
 # Local data and generated output
 data/*
 !data/README.md
-reports/
+reports/*
+!reports/.gitkeep
