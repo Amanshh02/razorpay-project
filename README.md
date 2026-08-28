@@ -103,7 +103,7 @@ python evals/run_eval.py
 
 ## Accuracy by version
 
-Measured against a labelled fixture set of 200 orders containing
+Measured against a labelled fixture set of 130 orders containing
 15 refunds, 5 chargebacks, 8 shortfalls, and 3 missing payments.
 
 | Version | Match rate | Refunds F1 | Chargebacks F1 | Shortfalls F1 | Missing pmts F1 | Notes |
