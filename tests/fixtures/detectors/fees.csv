@@ -5,3 +5,5 @@ pay_refund_22,35400,6372,41772
 pay_chargeback_01,18880,3398,22278
 pay_small_gap,11800,2124,13924
 pay_tolerance_edge,7080,1274,8354
+pay_shortfall_19,28320,5098,33418
+pay_overpaid,14160,2549,16709

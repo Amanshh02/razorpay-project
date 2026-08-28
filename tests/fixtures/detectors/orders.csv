@@ -5,3 +5,6 @@ ord_refund_22,2026-03-03 10:00:00,cust_9003,1500000,270000,1770000,pay_refund_22
 ord_chargeback_01,2026-03-04 10:00:00,cust_9004,800000,144000,944000,pay_chargeback_01,paid
 ord_small_gap,2026-03-05 10:00:00,cust_9005,500000,90000,590000,pay_small_gap,paid
 ord_tolerance_edge,2026-03-06 10:00:00,cust_9006,300000,54000,354000,pay_tolerance_edge,paid
+ord_shortfall_19,2026-03-07 10:00:00,cust_9007,1200000,216000,1416000,pay_shortfall_19,paid
+ord_overpaid,2026-03-08 10:00:00,cust_9008,600000,108000,708000,pay_overpaid,paid
+ord_missing_payment,2026-03-09 10:00:00,cust_9009,900000,162000,1062000,pay_missing_01,paid

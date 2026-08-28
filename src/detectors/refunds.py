@@ -13,7 +13,7 @@ shortfall, so the split is a magnitude heuristic, not a derivation:
 - shortfall >= ``config.REFUND_THRESHOLD_PCT`` -> refund, medium
   confidence. This is the grey zone where the rule is weakest.
 - below that -> not claimed here at all; see
-  ``src.detectors.unexplained``.
+  ``src.detectors.shortfalls``.
 
 Chargebacks also clear the threshold, so they are excluded up front and
 no order can carry both labels.
