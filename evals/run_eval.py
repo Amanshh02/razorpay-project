@@ -1,30 +1,42 @@
 """Accuracy harness. The source of truth for every number we report.
 
-Runs the full pipeline over the four ledger CSVs in tests/fixtures/ and
-scores its findings against ``ground_truth.csv``.
+Runs the full pipeline over a labelled fixture set and scores its
+findings against that set's ``ground_truth.csv``.
 
 **This is the only file in the project permitted to read
 ``ground_truth.csv``** (CLAUDE.md §11 and §13). No loader, matcher or
 detector may reference it. If detection logic ever needs the answer key
 to work, the accuracy numbers it produces are meaningless.
 
+Two sets, scored separately
+---------------------------
+- **easy** - ``tests/fixtures/``, 130 orders. The regression baseline.
+  The rules were written against these, and they score perfectly, which
+  is a statement about the fixtures rather than the detectors.
+- **hard** - ``tests/fixtures/hard/``, 40 orders built to break the
+  current rules on purpose: refunds under the threshold, shortfalls over
+  it, chargebacks with a non-standard fee. **These are meant to fail.**
+  The gap between the two sets is the headroom the agent layer has to
+  close, and tuning the rules to close it here would just move the
+  overfitting from one set to the other.
+
 Scoring
 -------
-The answer key labels four anomaly types. ``settlement_excess`` is a
-fifth type the detectors can emit and the key has no labels for at all,
-so it is **counted and reported separately, never scored**. Treating it
-as a false positive would penalise the pipeline for finding something
-the key was never built to describe.
+Which types are scored is derived per set from that set's answer key. A
+type the pipeline can emit but the key never labels is **counted and
+reported separately, never scored** - treating it as a false positive
+would penalise the pipeline for finding something the key was not built
+to describe. ``settlement_excess`` is unlabelled in the easy set and
+labelled in the hard one, and is handled correctly in both without a
+special case.
 
-Two different overall figures are printed, because they measure
-different things:
+Two overall figures are printed per set, because they measure different
+things:
 
 - **match rate** - the share of input orders the matcher could join
-  through the whole ID chain. A coverage measure. It moves when the
-  matcher or the data changes, not when detection improves.
+  through the whole ID chain. A coverage measure.
 - **classification accuracy** - the share of all orders given the right
-  label, counting correctly-unflagged clean orders as correct. This is
-  the figure that should move as the agent layer lands.
+  label, counting correctly-unflagged clean orders as correct.
 
 Usage::
 
@@ -60,21 +72,24 @@ from src.loaders import (  # noqa: E402
 from src.matching import match_ledgers  # noqa: E402
 
 FIXTURES = ROOT / "tests" / "fixtures"
-GROUND_TRUTH = FIXTURES / "ground_truth.csv"
 
-#: Types the answer key labels. Only these are scored.
-SCORED_TYPES = (
+#: Canonical ordering of every type the pipeline can emit.
+ANOMALY_TYPES = (
     "refund_not_reflected",
     "chargeback",
     "settlement_shortfall",
     "payment_not_received",
+    "settlement_excess",
 )
 
-#: Types the detectors can emit that the answer key has no labels for.
-UNSCORED_TYPES = ("settlement_excess",)
+#: (label, directory) for each labelled set, scored independently.
+SETS = (
+    ("easy", FIXTURES),
+    ("hard", FIXTURES / "hard"),
+)
 
 
-def run_pipeline(fixtures=FIXTURES):
+def run_pipeline(fixtures):
     """Load, match and detect. Returns (findings, match_result, orders)."""
     orders = load_orders(fixtures / "orders.csv")
     payments = load_payments(fixtures / "payments.csv")
@@ -95,17 +110,27 @@ def run_pipeline(fixtures=FIXTURES):
     return findings, matched, orders
 
 
-def load_ground_truth():
-    """Read the answer key. Nothing outside this module may do this."""
-    return pd.read_csv(GROUND_TRUTH, dtype=str, keep_default_na=False)
+def load_ground_truth(fixtures):
+    """Read a set's answer key. Nothing outside this module may do this."""
+    return pd.read_csv(
+        fixtures / "ground_truth.csv", dtype=str, keep_default_na=False
+    )
+
+
+def scored_types(truth):
+    """The types this answer key actually labels, in canonical order.
+
+    Derived rather than hardcoded so a type the key never mentions is
+    never scored against labels that do not exist.
+    """
+    present = set(truth.values())
+    return tuple(name for name in ANOMALY_TYPES if name in present)
 
 
 def score_type(predicted, truth, anomaly_type):
     """Precision, recall and F1 for one anomaly type, keyed on order_id."""
     got = {
-        order_id
-        for order_id, label in predicted.items()
-        if label == anomaly_type
+        order_id for order_id, label in predicted.items() if label == anomaly_type
     }
     want = {
         order_id for order_id, label in truth.items() if label == anomaly_type
@@ -126,9 +151,7 @@ def score_type(predicted, truth, anomaly_type):
         else 0.0
     )
     f1 = (
-        2 * precision * recall / (precision + recall)
-        if precision + recall
-        else 0.0
+        2 * precision * recall / (precision + recall) if precision + recall else 0.0
     )
     return {
         "anomaly_type": anomaly_type,
@@ -143,33 +166,34 @@ def score_type(predicted, truth, anomaly_type):
     }
 
 
-def main():
-    findings, matched, orders = run_pipeline()
-    truth_frame = load_ground_truth()
-
+def evaluate(label, fixtures):
+    """Score one fixture set and print its block. Returns a summary dict."""
+    findings, matched, orders = run_pipeline(fixtures)
+    truth_frame = load_ground_truth(fixtures)
     truth = dict(zip(truth_frame["order_id"], truth_frame["anomaly_type"]))
-    scored = findings[findings["anomaly_type"].isin(SCORED_TYPES)]
+
+    scored_names = scored_types(truth)
+    unscored_names = tuple(n for n in ANOMALY_TYPES if n not in scored_names)
+
+    scored = findings[findings["anomaly_type"].isin(scored_names)]
     predicted = dict(zip(scored["order_id"], scored["anomaly_type"]))
 
     total_orders = len(orders)
     reconciled = len(matched.reconciled)
     match_rate = reconciled / total_orders if total_orders else 0.0
 
-    print("=" * 72)
-    print("AI Finance Controller - accuracy eval")
-    print("=" * 72)
-    print(f"fixture set : {total_orders} orders in {FIXTURES}")
-    print(f"answer key  : {len(truth_frame)} labelled anomalies")
-    print(f"pipeline    : {len(findings)} findings "
-          f"({len(scored)} scored, {len(findings) - len(scored)} unscored)")
+    print("=" * 74)
+    print(f"SET: {label.upper()}   {fixtures}")
+    print("=" * 74)
+    print(f"orders {total_orders} | labelled anomalies {len(truth_frame)} | "
+          f"findings {len(findings)} ({len(scored)} scored)")
     print()
-
-    print("-" * 72)
+    print("-" * 74)
     print(f"{'anomaly type':<24}{'sup':>5}{'pred':>6}{'TP':>5}{'FP':>5}{'FN':>5}"
           f"{'prec':>9}{'recall':>9}{'F1':>9}")
-    print("-" * 72)
+    print("-" * 74)
 
-    rows = [score_type(predicted, truth, name) for name in SCORED_TYPES]
+    rows = [score_type(predicted, truth, name) for name in scored_names]
     for row in rows:
         print(
             f"{row['anomaly_type']:<24}{row['support']:>5}{row['predicted']:>6}"
@@ -180,59 +204,40 @@ def main():
     total_tp = sum(row["tp"] for row in rows)
     total_fp = sum(row["fp"] for row in rows)
     total_fn = sum(row["fn"] for row in rows)
-    micro_precision = (
-        total_tp / (total_tp + total_fp) if total_tp + total_fp else 0.0
-    )
-    micro_recall = total_tp / (total_tp + total_fn) if total_tp + total_fn else 0.0
-    micro_f1 = (
-        2 * micro_precision * micro_recall / (micro_precision + micro_recall)
-        if micro_precision + micro_recall
-        else 0.0
-    )
-    print("-" * 72)
+    micro_p = total_tp / (total_tp + total_fp) if total_tp + total_fp else 0.0
+    micro_r = total_tp / (total_tp + total_fn) if total_tp + total_fn else 0.0
+    micro_f1 = 2 * micro_p * micro_r / (micro_p + micro_r) if micro_p + micro_r else 0.0
+
+    print("-" * 74)
     print(
         f"{'MICRO AVERAGE':<24}{sum(r['support'] for r in rows):>5}"
         f"{sum(r['predicted'] for r in rows):>6}"
         f"{total_tp:>5}{total_fp:>5}{total_fn:>5}"
-        f"{micro_precision:>9.3f}{micro_recall:>9.3f}{micro_f1:>9.3f}"
+        f"{micro_p:>9.3f}{micro_r:>9.3f}{micro_f1:>9.3f}"
     )
-    print("-" * 72)
+    print("-" * 74)
     print()
 
-    # Correctly leaving a clean order unflagged counts as correct.
-    labelled = set(truth)
-    flagged = set(predicted)
     correct = sum(
         1
         for order_id in orders["order_id"]
         if predicted.get(order_id) == truth.get(order_id)
     )
     accuracy = correct / total_orders if total_orders else 0.0
+    print(f"match rate              : {match_rate:.3f}  "
+          f"({reconciled}/{total_orders} joined through the ID chain)")
+    print(f"classification accuracy : {accuracy:.3f}  "
+          f"({correct}/{total_orders} given the right label)")
 
-    print(f"match rate               : {match_rate:.3f}  "
-          f"({reconciled}/{total_orders} orders joined through the ID chain)")
-    print(f"classification accuracy  : {accuracy:.3f}  "
-          f"({correct}/{total_orders} orders given the right label)")
-    print(f"clean orders unflagged   : "
-          f"{total_orders - len(labelled | flagged)}/{total_orders - len(labelled)}")
-    print()
-
-    unscored = findings[findings["anomaly_type"].isin(UNSCORED_TYPES)]
-    print("unscored types (no labels exist in the answer key):")
-    if unscored.empty:
-        for name in UNSCORED_TYPES:
-            print(f"  {name:<24} 0 findings")
-    else:
-        for name, count in unscored["anomaly_type"].value_counts().items():
+    unscored = findings[findings["anomaly_type"].isin(unscored_names)]
+    if unscored_names:
+        print()
+        print("unscored (no labels in this key):")
+        for name in unscored_names:
+            count = int((unscored["anomaly_type"] == name).sum())
             print(f"  {name:<24} {count} findings - reported, not scored")
-    print()
 
-    print("confidence split across scored findings:")
-    for level in ("high", "medium", "low"):
-        count = int((scored["confidence"] == level).sum())
-        print(f"  {level:<24} {count}")
-    print()
-
+    flagged = set(predicted)
     misses = sorted(set(truth) - flagged)
     wrong = sorted(
         order_id
@@ -240,11 +245,55 @@ def main():
         if predicted[order_id] != truth[order_id]
     )
     spurious = sorted(flagged - set(truth))
-    print(f"missed entirely   : {misses if misses else 'none'}")
-    print(f"wrong label       : {wrong if wrong else 'none'}")
-    print(f"flagged but clean : {spurious if spurious else 'none'}")
-    print("=" * 72)
+    print()
+    print(f"missed entirely   ({len(misses):>2}): {', '.join(misses) if misses else 'none'}")
+    print(f"wrong label       ({len(wrong):>2}): {', '.join(wrong) if wrong else 'none'}")
+    print(f"flagged but clean ({len(spurious):>2}): {', '.join(spurious) if spurious else 'none'}")
 
+    if wrong:
+        print()
+        print("  what the wrong labels became:")
+        for order_id in wrong:
+            print(f"    {order_id}: truth={truth[order_id]:<22} "
+                  f"predicted={predicted[order_id]}")
+    print()
+
+    return {
+        "label": label,
+        "rows": {row["anomaly_type"]: row for row in rows},
+        "match_rate": match_rate,
+        "accuracy": accuracy,
+        "micro_f1": micro_f1,
+        "micro_recall": micro_r,
+    }
+
+
+def main():
+    summaries = [evaluate(label, directory) for label, directory in SETS]
+
+    print("=" * 74)
+    print("SUMMARY")
+    print("=" * 74)
+    header = f"{'metric':<26}" + "".join(f"{s['label']:>12}" for s in summaries)
+    print(header)
+    print("-" * 74)
+    for name in ANOMALY_TYPES:
+        cells = ""
+        for summary in summaries:
+            row = summary["rows"].get(name)
+            # ASCII only: this table is read in terminals whose encoding
+            # mangles anything else.
+            cells += f"{row['f1']:>12.3f}" if row else f"{'n/a':>12}"
+        print(f"{name + ' F1':<26}{cells}")
+    print("-" * 74)
+    for key, title in (
+        ("micro_recall", "micro recall"),
+        ("micro_f1", "micro F1"),
+        ("accuracy", "classification accuracy"),
+        ("match_rate", "match rate"),
+    ):
+        print(f"{title:<26}" + "".join(f"{s[key]:>12.3f}" for s in summaries))
+    print("=" * 74)
     return 0
 
 

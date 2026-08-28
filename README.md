@@ -112,32 +112,52 @@ python evals/run_eval.py
 
 ## Accuracy by version
 
-Measured against a labelled fixture set of 130 orders containing
-15 refunds, 5 chargebacks, 8 shortfalls, and 3 missing payments.
+Two labelled sets, scored separately by `evals/run_eval.py`:
 
-| Version | Match rate | Refunds F1 | Chargebacks F1 | Shortfalls F1 | Missing pmts F1 | Notes |
-|---|---|---|---|---|---|---|
-| v0.1 | 0.977 | 1.000 | 1.000 | 1.000 | 1.000 | rules only, no agent layer |
-| v0.2 | — | — | — | — | — | + LLM classification |
+- **easy** — `tests/fixtures/`, 130 orders containing 15 refunds,
+  5 chargebacks, 8 shortfalls and 3 missing payments. The regression
+  baseline.
+- **hard** — `tests/fixtures/hard/`, 40 orders built to break the rules
+  on purpose: refunds under the 20% threshold, shortfalls over it,
+  chargebacks with a non-₹500 fee, two refunds on one order, a refund
+  and a shortfall combined. See that directory's README.
+
+| Version | Set | Match rate | Refunds F1 | Chargebacks F1 | Shortfalls F1 | Missing pmts F1 | Excess F1 | Notes |
+|---|---|---|---|---|---|---|---|---|
+| v0.1 | easy | 0.977 | 1.000 | 1.000 | 1.000 | 1.000 | n/a | rules only, no agent layer |
+| v0.1-hard | hard | 0.950 | 0.643 | 0.571 | 0.222 | 1.000 | 1.000 | rules only, no agent layer |
+| v0.2 | easy | — | — | — | — | — | — | + LLM classification |
+| v0.2-hard | hard | — | — | — | — | — | — | + LLM classification |
 
 Recall is the priority metric — a missed discrepancy is money lost,
 a false positive is a human glance.
 
-**Read the v0.1 row with suspicion.** A perfect score on 31 anomalies
-is a statement about the fixtures, not about the detectors. The rules
-were written by inspecting these same four ledgers, and the fixture set
-contains no hard cases: the refund threshold sits in a 6.8-point empty
-band between the largest shortfall (18.18% of the captured payment) and
-the smallest refund (25%). One production export with a 22% refund lands
-in that gap. Two of the five branches — medium-confidence refund and
-overpayment — have no instance here at all and are exercised only by
-hand-built fixtures.
+**The easy row is not evidence the detectors work.** A perfect score
+there is a statement about the fixtures: the rules were written by
+inspecting those same four ledgers, and the set contains no case the
+20% refund threshold can get wrong — it sits in a 6.8-point empty band
+between the largest shortfall (18.18%) and the smallest refund (25%).
 
-`match rate` is the share of orders joined through the whole ID chain
-(127/130; the three missing payments cannot join past the first link).
-It measures coverage, not detection. The eval also reports
-classification accuracy, 1.000 at v0.1, which is the figure that should
-move as the agent layer lands.
+**The hard row is what the rules are actually worth.** Micro F1 falls
+to 0.615 and classification accuracy to 0.750. Every error is a
+mislabel rather than a miss — nothing is overlooked, but ten of
+twenty-six anomalies get the wrong type:
+
+- 5 refunds under the threshold are called shortfalls
+- 2 shortfalls over it are called refunds
+- 3 chargebacks with a non-standard fee are called refunds
+
+`settlement_shortfall` collapses to 0.222 F1 because it absorbs the
+refunds the threshold rejects while losing the ones it steals.
+
+That gap — 1.000 to 0.615 — is the headroom the agent layer exists to
+close. **The rules are deliberately not tuned to pass the hard set**;
+doing so would move the overfitting rather than remove it.
+
+`match rate` is the share of orders joined through the whole ID chain,
+a coverage measure rather than a detection one. The eval also reports
+classification accuracy, which counts correctly-unflagged clean orders
+as correct.
 
 ## Tech stack
 

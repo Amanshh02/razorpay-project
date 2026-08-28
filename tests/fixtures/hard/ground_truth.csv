@@ -1,0 +1,27 @@
+order_id,payment_id,anomaly_type,expected_amount_paise,actual_amount_paise,delta_paise,notes
+ord_h0015,pay_h0015,refund_not_reflected,2223653,1611816,-611837,"arbitrary partial refund, not a round percentage"
+ord_h0016,pay_h0016,refund_not_reflected,2857337,1879924,-977413,"arbitrary partial refund, not a round percentage"
+ord_h0017,pay_h0017,refund_not_reflected,4170790,3071539,-1099251,"arbitrary partial refund, not a round percentage"
+ord_h0018,pay_h0018,refund_not_reflected,973568,542359,-431209,"arbitrary partial refund, not a round percentage"
+ord_h0019,pay_h0019,refund_not_reflected,1566927,1059264,-507663,"arbitrary partial refund, not a round percentage"
+ord_h0020,pay_h0020,refund_not_reflected,3341241,2930601,-410640,12% refund; below the 20% rule threshold
+ord_h0021,pay_h0021,refund_not_reflected,1935615,1638255,-297360,15% refund; below the 20% rule threshold
+ord_h0022,pay_h0022,refund_not_reflected,3928838,3606934,-321904,8% refund; well below the 20% rule threshold
+ord_h0023,pay_h0023,settlement_shortfall,1428668,916548,-512120,unexplained bank shortfall of 35%; no refund occurred
+ord_h0024,pay_h0024,settlement_shortfall,2552017,1820181,-731836,unexplained bank shortfall of 28%; no refund occurred
+ord_h0025,pay_h0025,chargeback,1670620,-65380,-1736000,"chargeback with a Rs 250 fee, not the Rs 500 the rule assumes"
+ord_h0026,pay_h0026,chargeback,2338869,-131531,-2470400,"chargeback with a Rs 750 fee, not the Rs 500 the rule assumes"
+ord_h0027,pay_h0027,chargeback,875636,-121164,-996800,"chargeback with a Rs 1000 fee, not the Rs 500 the rule assumes"
+ord_h0028,pay_h0028,chargeback,2177567,-102633,-2280200,chargeback with the standard Rs 500 fee
+ord_h0029,pay_h0029,chargeback,622162,-65038,-687200,chargeback with the standard Rs 500 fee
+ord_h0030,pay_h0030,refund_not_reflected,3041681,2300786,-740895,two separate refunds on one order; ledger shows only the sum
+ord_h0031,pay_h0031,refund_not_reflected,2246696,1849163,-397533,two refunds summing below the 20% threshold
+ord_h0032,pay_h0032,refund_not_reflected,2661471,2082420,-579051,18% refund plus a separate unexplained shortfall
+ord_h0033,pay_h0033,refund_not_reflected,1820400,1555417,-264983,12% refund plus a small shortfall; combined still under threshold
+ord_h0034,pay_h0034,settlement_excess,1636056,1699556,63500,bank credited more than expected
+ord_h0035,pay_h0035,settlement_excess,3306676,3424916,118240,bank credited more than expected
+ord_h0036,pay_h0036,payment_not_received,1994200,0,-1994200,merchant marked order paid; no record in payments.csv
+ord_h0037,pay_h0037,payment_not_received,3823200,0,-3823200,merchant marked order paid; no record in payments.csv
+ord_h0038,pay_h0038,refund_not_reflected,2477127,1716027,-761100,"30% refund, the easy case"
+ord_h0039,pay_h0039,refund_not_reflected,1463233,713933,-749300,"50% refund, the easy case"
+ord_h0040,pay_h0040,settlement_shortfall,2119960,2054824,-65136,"small unexplained shortfall, the easy case"
