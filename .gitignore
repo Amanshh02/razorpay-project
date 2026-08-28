@@ -1,0 +1,11 @@
+# Environment
+.env
+.venv/
+
+# Python
+__pycache__/
+*.pyc
+
+# Local data and generated output
+data/*.csv
+reports/
