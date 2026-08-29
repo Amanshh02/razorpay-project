@@ -176,6 +176,13 @@ Two labelled sets, scored separately by `evals/run_eval.py`:
 | v0.1-hard | hard | 0.950 | 0.643 | 0.571 | 0.222 | 1.000 | 1.000 | rules only, no agent layer |
 | v0.2 | easy | 0.977 | 1.000 | 1.000 | 1.000 | 1.000 | n/a | + LLM classification |
 | v0.2-hard | hard | 0.950 | 0.720 | **1.000** | 0.222 | 1.000 | 1.000 | + LLM classification |
+| v0.3 | easy | 0.977 | 1.000 | 1.000 | 1.000 | 1.000 | n/a | + dashboard; detection unchanged |
+| v0.3-hard | hard | 0.950 | 0.720 | 1.000 | 0.222 | 1.000 | 1.000 | + dashboard; detection unchanged |
+
+The v0.3 rows are identical to v0.2 by design. The dashboard reads the
+report and changes no detection logic, so the numbers cannot move — they
+are recorded here because they were re-measured at that tag, not assumed
+to be unchanged.
 
 Recall is the priority metric — a missed discrepancy is money lost,
 a false positive is a human glance.
