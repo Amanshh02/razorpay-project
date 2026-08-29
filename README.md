@@ -266,6 +266,44 @@ control flow rather than only to arithmetic, and it is a design choice
 rather than a limitation: an agent that can act on a settlement
 calculation is an agent that can corrupt one.
 
+## Where the loop ends, and why
+
+This closes the **identification** loop: ingest, match, detect,
+classify, report. It does not act. Nothing writes back to a ledger,
+files a dispute with the gateway, or triggers a recovery. The output is
+a ranked list of discrepancies with amounts, confidence and reasons;
+what to do about them is a human's decision.
+
+Identification and remediation are separate loops with different risk
+profiles. A wrong identification costs a human a glance. A wrong
+remediation files a dispute that did not exist, and auto-filing on a
+misclassified chargeback is worse than filing nothing at all. This
+system's own numbers are the argument against acting on everything it
+produces: seven orders on the adversarial set remain misclassified
+after the agent pass, and a sweep of every candidate threshold shows no
+constant separates the two classes involved — 19 refunds sit below the
+largest shortfall. A system that actioned every finding would act
+wrongly on those seven.
+
+Remediation becomes appropriate only where the arithmetic signature is
+exact rather than inferred: **chargeback**, **payment not received**,
+and **settlement excess**. Each matches an identity within tolerance or
+does not, each carries high confidence by construction, and each scores
+**1.000 precision and recall on both fixture sets**. Measured across
+both sets with the agent pass, those three classes account for 8 of 31
+findings (26%) on the easy set and 9 of 26 (35%) on the adversarial
+set, with **zero wrong labels among them on either set**. The remaining
+65–74% are threshold-decided and belong in a review queue.
+
+If remediation were built, it would action only those three classes and
+route everything else to a human. **The filter must be the anomaly
+type, not the confidence field** — that distinction is measured, not
+stylistic. After the agent pass, one threshold-decided finding on the
+adversarial set (`ord_h0022`) carries high confidence and the wrong
+label, because the agent reports its own certainty and can be
+confidently wrong about a refund. Filtering on confidence would
+auto-action it; filtering on type would not.
+
 ## Inputs
 
 | File | Contents |
