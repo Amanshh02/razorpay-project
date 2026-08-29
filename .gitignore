@@ -11,3 +11,6 @@ data/*
 !data/README.md
 reports/*
 !reports/.gitkeep
+
+# Cached LLM responses (agent layer)
+.llm_cache/

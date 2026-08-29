@@ -106,9 +106,18 @@ pip install -r requirements.txt
 # run reconciliation
 python -m src.main --data data/ --out reports/
 
-# run the eval suite
+# run the eval suite, rules only — no API key needed, no network call
 python evals/run_eval.py
+
+# run it with the agent layer as well
+python evals/run_eval.py --agent
 ```
+
+`--agent` needs `ANTHROPIC_API_KEY` in `.env` (gitignored, never
+committed). Responses are cached to `.llm_cache/` keyed by model, prompt
+version and finding, so re-running the eval costs nothing; delete that
+directory to force a fresh run. `LLM_PROVIDER` selects the provider and
+defaults to `anthropic`.
 
 ## Accuracy by version
 
@@ -126,8 +135,8 @@ Two labelled sets, scored separately by `evals/run_eval.py`:
 |---|---|---|---|---|---|---|---|---|
 | v0.1 | easy | 0.977 | 1.000 | 1.000 | 1.000 | 1.000 | n/a | rules only, no agent layer |
 | v0.1-hard | hard | 0.950 | 0.643 | 0.571 | 0.222 | 1.000 | 1.000 | rules only, no agent layer |
-| v0.2 | easy | — | — | — | — | — | — | + LLM classification |
-| v0.2-hard | hard | — | — | — | — | — | — | + LLM classification |
+| v0.2 | easy | 0.977 | 1.000 | 1.000 | 1.000 | 1.000 | n/a | + LLM classification |
+| v0.2-hard | hard | 0.950 | 0.720 | **1.000** | 0.222 | 1.000 | 1.000 | + LLM classification |
 
 Recall is the priority metric — a missed discrepancy is money lost,
 a false positive is a human glance.
@@ -153,6 +162,21 @@ refunds the threshold rejects while losing the ones it steals.
 That gap — 1.000 to 0.615 — is the headroom the agent layer exists to
 close. **The rules are deliberately not tuned to pass the hard set**;
 doing so would move the overfitting rather than remove it.
+
+**What the agent layer bought (v0.1-hard → v0.2-hard).** Micro F1 rises
+0.615 → 0.731 on hard and holds at 1.000 on easy. The whole gain is one
+failure class: chargebacks carrying a fee other than ₹500, which the
+rules structurally cannot see and which go 0.571 → **1.000**. The agent
+is routed only medium- and low-confidence findings, and may displace the
+rule's label only when it disagrees at high confidence — a bar set
+because every hedged override measured made the answer worse, while
+every confident one was right.
+
+The refund/shortfall boundary is **unchanged** at 0.222 shortfall F1.
+Seven hard orders still carry the wrong label, all of them sitting where
+a refund and a shortfall are indistinguishable from the four ledgers.
+Nothing short of a fifth ledger recording refunds will fix those; the
+agent correctly declines to guess.
 
 `match rate` is the share of orders joined through the whole ID chain,
 a coverage measure rather than a detection one. The eval also reports
@@ -197,6 +221,6 @@ reports/      generated output (gitignored)
 - [x] Stage 3 — matching engine
 - [x] Stage 4 — refund & chargeback detection
 - [x] Stage 5 — shortfall & missing payment detection
-- [ ] Stage 6 — agent classification layer
+- [x] Stage 6 — agent classification layer
 - [x] Stage 7 — eval harness
 - [ ] Stage 8 — reporting output

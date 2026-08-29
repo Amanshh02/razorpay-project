@@ -5,3 +5,6 @@ pytest
 # resolve config.TIMEZONE without this. Verified: zoneinfo.TZPATH is
 # empty and available_timezones() returns 0 on this machine.
 tzdata
+
+# Agent layer. Only src/agent/client.py imports this.
+anthropic

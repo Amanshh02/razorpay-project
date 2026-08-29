@@ -40,11 +40,16 @@ things:
 
 Usage::
 
-    python evals/run_eval.py
+    python evals/run_eval.py            # rules only (the v0.1 baseline)
+    python evals/run_eval.py --agent    # + stage 6 agent classification
+
+Without ``--agent`` no API key is needed and no network call is made, so
+the rules-only numbers stay reproducible anywhere.
 """
 
 from __future__ import annotations
 
+import argparse
 import sys
 from pathlib import Path
 
@@ -166,9 +171,14 @@ def score_type(predicted, truth, anomaly_type):
     }
 
 
-def evaluate(label, fixtures):
+def evaluate(label, fixtures, agent=None, cache=None):
     """Score one fixture set and print its block. Returns a summary dict."""
     findings, matched, orders = run_pipeline(fixtures)
+    decisions = []
+    if agent is not None:
+        from src.agent import classify
+
+        findings, decisions = classify(findings, matched.reconciled, agent, cache)
     truth_frame = load_ground_truth(fixtures)
     truth = dict(zip(truth_frame["order_id"], truth_frame["anomaly_type"]))
 
@@ -237,6 +247,9 @@ def evaluate(label, fixtures):
             count = int((unscored["anomaly_type"] == name).sum())
             print(f"  {name:<24} {count} findings - reported, not scored")
 
+    if decisions:
+        _print_agent_block(decisions, truth)
+
     flagged = set(predicted)
     misses = sorted(set(truth) - flagged)
     wrong = sorted(
@@ -268,8 +281,63 @@ def evaluate(label, fixtures):
     }
 
 
+def _print_agent_block(decisions, truth):
+    """What the agent did, and whether each move helped or hurt."""
+    from src.agent import CONFIRMED, OVERRIDDEN, OVERRIDE_REJECTED, UNPARSEABLE
+
+    counts = {}
+    for decision in decisions:
+        counts[decision["action"]] = counts.get(decision["action"], 0) + 1
+
+    print()
+    print(f"agent: {len(decisions)} findings routed (medium/low confidence only)")
+    for action in (CONFIRMED, OVERRIDDEN, OVERRIDE_REJECTED, UNPARSEABLE):
+        if counts.get(action):
+            print(f"  {action:<20} {counts[action]}")
+
+    moved = [d for d in decisions if d["action"] == OVERRIDDEN]
+    if moved:
+        print()
+        print("  overrides, and whether each was right:")
+        for decision in moved:
+            want = truth.get(decision["order_id"])
+            before = decision["rule_label"] == want
+            after = decision["applied_label"] == want
+            verdict = (
+                "FIXED" if after and not before
+                else "BROKE" if before and not after
+                else "no change"
+            )
+            print(f"    {decision['order_id']}: {decision['rule_label']} -> "
+                  f"{decision['applied_label']}  [{verdict}]")
+
+
 def main():
-    summaries = [evaluate(label, directory) for label, directory in SETS]
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--agent", action="store_true",
+        help="route medium/low confidence findings through the agent layer",
+    )
+    parser.add_argument(
+        "--no-cache", action="store_true",
+        help="ignore the response cache and re-bill every call",
+    )
+    args = parser.parse_args()
+
+    agent = cache = None
+    if args.agent:
+        from src.agent import ResponseCache, build_client
+
+        agent = build_client()
+        cache = ResponseCache(enabled=not args.no_cache)
+        print(f"agent enabled: model {agent.model}")
+        print()
+
+    summaries = [
+        evaluate(label, directory, agent, cache) for label, directory in SETS
+    ]
+    if cache is not None:
+        print(f"cache: {cache.summary()}")
 
     print("=" * 74)
     print("SUMMARY")
