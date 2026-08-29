@@ -259,6 +259,13 @@ human-readable explanation attached to each flag.
 This means the numbers are reproducible and auditable, and the
 intelligence sits exactly where it adds value.
 
+The LLM has **no tools, no loop, and no control over program flow** —
+it receives one finding, returns one label with a reason, and never
+decides what runs next. That is the determinism boundary applied to
+control flow rather than only to arithmetic, and it is a design choice
+rather than a limitation: an agent that can act on a settlement
+calculation is an agent that can corrupt one.
+
 ## Inputs
 
 | File | Contents |
