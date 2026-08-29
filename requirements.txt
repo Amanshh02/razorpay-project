@@ -8,3 +8,6 @@ tzdata
 
 # Agent layer. Only src/agent/client.py imports this.
 anthropic
+
+# Dashboard. Only src/dashboard/ imports this.
+streamlit

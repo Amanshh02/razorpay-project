@@ -125,6 +125,39 @@ version and finding, so re-running the eval costs nothing; delete that
 directory to force a fresh run. `LLM_PROVIDER` selects the provider and
 defaults to `anthropic`.
 
+## Running the dashboard
+
+```bash
+streamlit run src/dashboard/app.py
+```
+
+Opens on <http://localhost:8501>. It reads the CSV the pipeline wrote to
+`reports/`, so **generate a report first** — with no CSV there it tells
+you which command to run rather than crashing or showing sample data.
+
+The dashboard is **read-only by construction**. It imports nothing from
+`src/matching`, `src/detectors` or `src/agent`, never runs
+reconciliation, and never opens `ground_truth.csv`; a test parses its
+AST to prove that rather than trusting the docstring. A viewer that can
+recompute is a viewer that can disagree with the report it is showing,
+and a finance team looking at two different numbers for one order has no
+way to tell which is real.
+
+What it shows:
+
+- Total exposure in rupees with Indian digit grouping, and the flagged
+  count. Overpayments appear separately and are **never netted** against
+  exposure.
+- One card per anomaly type with its count and rupee impact.
+- Every flag in a sortable table — order ID, anomaly type, expected,
+  actual, delta, confidence, explanation — sorted by absolute delta
+  descending by default. The explanation is the agent's sentence where
+  it ran, the rule's reasoning otherwise.
+- Sidebar filters for anomaly type and minimum absolute delta.
+
+Amounts are stored as integer paise everywhere and converted to rupees
+at render time only.
+
 ## Accuracy by version
 
 Two labelled sets, scored separately by `evals/run_eval.py`:
@@ -196,7 +229,7 @@ as correct.
 | Core | Python 3.11, pandas |
 | Agent | Claude API (tool use) |
 | Evals | Custom harness — see `/evals` |
-| Interface | CLI first; dashboard if time allows |
+| Interface | CLI + read-only Streamlit dashboard |
 
 ## Project structure
 
@@ -208,6 +241,7 @@ src/          reconciliation engine
   matching/   the join logic
   detectors/  one module per anomaly type
   agent/      LLM classification + explanation
+  dashboard/  read-only Streamlit viewer
 evals/        accuracy harness
 tests/        unit tests + labelled fixtures
 docs/         data model and business rules
