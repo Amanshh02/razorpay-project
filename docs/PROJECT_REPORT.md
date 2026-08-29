@@ -9,6 +9,83 @@ from a specific tool invocation, the invocation is named.
 
 ---
 
+## Track 04 traceability
+
+Each phrase of the published brief, mapped to where it is satisfied.
+Figures were re-measured at `1a33286`.
+
+### The task
+
+> *"Build an agent that closes one finance-ops loop across a 50+ record
+> batch of synthetic data, reporting its match rate and the exceptions
+> it could not resolve."*
+
+| Brief phrase | Where | Evidence |
+|---|---|---|
+| "an agent" | `src/agent/` — `63f3080` | LLM classification pass over medium/low-confidence findings. One stateless call per finding, provider-agnostic behind `LLMClient`. **See "where the fit is partial" below.** |
+| "closes one finance-ops loop" | `src/main.py` — `64b8b5a` | Ingest → match → detect → classify → report → dashboard. `python -m src.main --data … --out …` runs the whole loop in one command. **Ends at reporting, not remediation** — see below. |
+| "50+ record batch" | `tests/fixtures/` — `9f7e017` | **130 orders / 511 ledger rows** across four files. Processed in one pass, nothing sampled. §1, README "Throughput". |
+| "of synthetic data" | `tests/fixtures/`, `tests/gen_hard.py` — `9f7e017`, `b171e1f` | Both sets synthetic and labelled. The hard set is regenerable byte-identically from any working directory. |
+| "reporting its match rate" | `evals/run_eval.py` — `53798b0` | Reported by name: **0.977** easy (127/130), **0.950** hard (38/40). Distinguished from classification accuracy, which measures a different thing. §6, §7. |
+| "the exceptions it could not resolve" | §8; README "Honest exception list" | **7 orders named** with ratios. Threshold sweep proves the classes overlap and the best achievable is 3 errors, not 0. |
+
+### Why now
+
+> *"Verification capacity, not generation speed, is the bottleneck.
+> Reconciliation, settlement and forecasting are still done by hand."*
+
+| Brief phrase | Where | Evidence |
+|---|---|---|
+| "verification capacity … is the bottleneck" | §2; README "Meeting the Track 04 bar" | The deterministic layer is the verifier and is deliberately not an LLM. The eval harness makes the verification itself checkable. |
+| "not generation speed" | §2 "How 'no LLM touches a number' is enforced structurally" | Four structural mechanisms, each tested: output schema carries no numeric field; `test_no_amount_is_ever_modified`; SDK confined to one file; dashboard cannot import the engine. |
+| "still done by hand" | §1 | Rs 481,919.30 exposure across 130 orders, 23.8% of orders carrying a discrepancy. |
+
+### Example direction
+
+> *"Multi-source reconciliation, settlement Q&A agent, forward cash
+> forecaster, tax-line matcher."*
+
+**This project is multi-source reconciliation** — four ledgers joined on
+an ID chain (§3). The other three directions are not attempted.
+
+### The bar
+
+> *"Throughput plus measured accuracy plus an honest exception list.
+> One cherry-picked match proves nothing."*
+
+| Criterion | Where | Measured figure |
+|---|---|---|
+| **Throughput** | README "Throughput"; `src/matching/engine.py` — `82c74d9` | 130 orders / 511 rows, median **0.189 s** over 7 runs (688 orders/s). Cold start 2.15 s. Per-ledger row conservation asserted **four times** before any result returns; violation raises `RowConservationError`. |
+| **Measured accuracy** | §7; README "Measured accuracy" | Per-type P/R/F1, both sets, both modes. Easy micro F1 **1.000**; hard micro F1 **0.615** rules-only, **0.731** with agent. Rules-only path needs no API key. |
+| **Honest exception list** | §8; README "Honest exception list" | 7 orders named. Sweep: 29 refunds vs 11 shortfalls, **19 refunds below the largest shortfall**, best achievable **3 errors**. |
+| **"One cherry-picked match proves nothing"** | §6; `bb2398f` | Whole-batch results only. Both sets scored in full, reported separately. The adversarial set exists so the numbers are not a self-report; the rules were **deliberately not tuned** to pass it. |
+
+### Where the fit is partial
+
+Stated here rather than left for a reader to discover.
+
+1. **"Agent" is a classification step, not an agentic loop.** One
+   stateless call per routed finding — no tools, no loop, no autonomy
+   over control flow. This is a deliberate consequence of the
+   determinism boundary (§2), not an omission, but a reader expecting
+   tool use and multi-step reasoning will not find it.
+2. **The loop closes at reporting, not remediation.** Nothing writes
+   back, files a dispute, or actions a recovery. Discrepancies are
+   identified, classified, costed and displayed; acting on them is a
+   human's job.
+3. **The adversarial set is 40 orders, under the 50+ bar on its own.**
+   The primary batch is 130 and clears it. The 40 is an *additional*
+   labelled set, not a second qualifying batch.
+4. **The headline number is the weakest evidence.** Easy-set micro F1
+   of 1.000 is the figure most likely to be skimmed and the one that
+   means least — it is a statement about the fixtures (§6). The hard
+   set's 0.615 / 0.731 is the honest measure.
+5. **130 orders is not a throughput test.** 688 orders/second is real
+   and reproducible; it is also measured on a batch that fits in memory
+   trivially. Nothing here demonstrates behaviour at 100k orders.
+
+---
+
 ## 1. Problem statement
 
 A merchant's money passes through four separate records before it lands
