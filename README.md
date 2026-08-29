@@ -103,8 +103,14 @@ python -m venv .venv
 .venv\Scripts\activate
 pip install -r requirements.txt
 
-# run reconciliation
+# run reconciliation, rules only
 python -m src.main --data data/ --out reports/
+
+# run it against the bundled fixtures instead
+python -m src.main --data tests/fixtures --out reports/
+
+# add the agent classification pass
+python -m src.main --data tests/fixtures --out reports/ --agent
 
 # run the eval suite, rules only — no API key needed, no network call
 python evals/run_eval.py
@@ -196,6 +202,8 @@ as correct.
 
 ```
 src/          reconciliation engine
+  main.py     CLI entry point
+  report.py   grouping, exposure, CSV + console output
   loaders/    one loader per ledger
   matching/   the join logic
   detectors/  one module per anomaly type
@@ -223,4 +231,4 @@ reports/      generated output (gitignored)
 - [x] Stage 5 — shortfall & missing payment detection
 - [x] Stage 6 — agent classification layer
 - [x] Stage 7 — eval harness
-- [ ] Stage 8 — reporting output
+- [x] Stage 8 — reporting output

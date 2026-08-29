@@ -10,7 +10,7 @@ settlement excess for the other direction. No order is claimed twice and
 none falls through.
 """
 
-from ._base import FINDING_COLUMNS, HIGH, LOW, MEDIUM, empty_findings
+from ._base import FINDING_COLUMNS, HIGH, LOW, MEDIUM, empty_findings, rupees
 from .chargebacks import CHARGEBACK, detect_chargebacks
 from .missing_payments import PAYMENT_NOT_RECEIVED, detect_missing_payments
 from .overpayments import SETTLEMENT_EXCESS, detect_overpayments
@@ -33,4 +33,5 @@ __all__ = [
     "detect_refunds",
     "detect_settlement_shortfalls",
     "empty_findings",
+    "rupees",
 ]
