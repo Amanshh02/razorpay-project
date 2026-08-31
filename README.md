@@ -206,7 +206,7 @@ Agreed, so none of the above is one match:
   detection logic needed the key, every number here would be
   meaningless.
 - **The failures are documented as thoroughly as the successes.**
-  [`docs/PROJECT_REPORT.md`](docs/PROJECT_REPORT.md) §5 records six
+  [`docs/PROJECT_REPORT.md`](docs/PROJECT_REPORT.md) §7 records eight
   incidents with the mathematics that went wrong, including one where
   the agent regressed the easy set and the commit was blocked.
 
@@ -224,7 +224,7 @@ Throughput figures come from timing `src.main.run()` in-process over 7
 runs and taking the median; the cold-start figure times the same
 command as a subprocess over 3 runs. The threshold sweep is the
 analysis reported in
-[`docs/PROJECT_REPORT.md`](docs/PROJECT_REPORT.md) §8.
+[`docs/PROJECT_REPORT.md`](docs/PROJECT_REPORT.md) §6.6.
 
 ## What it does
 

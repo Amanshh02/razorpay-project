@@ -1,11 +1,20 @@
 # AI Finance Controller — Technical Report
 
-**Scope:** first commit (`1e77549`) to `beeb5a4`, 27 commits on `main`,
-two tags. 193 tests. 2,440 lines under `src/`, 2,154 under `tests/`.
+**Scope:** first commit (`1e77549`) to `72c14b6`, **32 commits** on
+`main`, two tags. **193 tests.** 2,440 lines under `src/`, 2,154 under
+`tests/`.
 
 Every number in this report was produced by a command run against the
-repository at `beeb5a4`, not quoted from memory. Where a figure comes
-from a specific tool invocation, the invocation is named.
+repository, not quoted from memory. Where a figure comes from a specific
+tool invocation, the invocation is named.
+
+**A note on timing figures.** Wall-clock measurements vary with machine
+load. The pipeline over 130 orders has measured a median of **0.136 s**
+and **0.189 s** on separate runs of 7 on the same machine. Both are
+real; neither is authoritative to three significant figures. Where a
+timing appears below, the run that produced it is named. Accuracy
+figures do not vary — the pipeline is deterministic, and the agent pass
+is served from cache.
 
 ---
 
@@ -26,8 +35,8 @@ Figures were re-measured at `1a33286`.
 | "closes one finance-ops loop" | `src/main.py` — `64b8b5a` | Ingest → match → detect → classify → report → dashboard. `python -m src.main --data … --out …` runs the whole loop in one command. **Ends at reporting, not remediation** — see below. |
 | "50+ record batch" | `tests/fixtures/` — `9f7e017` | **130 orders / 511 ledger rows** across four files. Processed in one pass, nothing sampled. §1, README "Throughput". |
 | "of synthetic data" | `tests/fixtures/`, `tests/gen_hard.py` — `9f7e017`, `b171e1f` | Both sets synthetic and labelled. The hard set is regenerable byte-identically from any working directory. |
-| "reporting its match rate" | `evals/run_eval.py` — `53798b0` | Reported by name: **0.977** easy (127/130), **0.950** hard (38/40). Distinguished from classification accuracy, which measures a different thing. §6, §7. |
-| "the exceptions it could not resolve" | §8; README "Honest exception list" | **7 orders named** with ratios. Threshold sweep proves the classes overlap and the best achievable is 3 errors, not 0. |
+| "reporting its match rate" | `evals/run_eval.py` — `53798b0` | Reported by name: **0.977** easy (127/130), **0.950** hard (38/40). Distinguished from classification accuracy, which measures a different thing. §8, §9. |
+| "the exceptions it could not resolve" | §10; README "Honest exception list" | **7 orders named** with ratios. Threshold sweep proves the classes overlap and the best achievable is 3 errors, not 0. |
 
 ### Why now
 
@@ -46,7 +55,7 @@ Figures were re-measured at `1a33286`.
 > forecaster, tax-line matcher."*
 
 **This project is multi-source reconciliation** — four ledgers joined on
-an ID chain (§3). The other three directions are not attempted.
+an ID chain (§4). The other three directions are not attempted.
 
 ### The bar
 
@@ -55,10 +64,10 @@ an ID chain (§3). The other three directions are not attempted.
 
 | Criterion | Where | Measured figure |
 |---|---|---|
-| **Throughput** | README "Throughput"; `src/matching/engine.py` — `82c74d9` | 130 orders / 511 rows, median **0.189 s** over 7 runs (688 orders/s). Cold start 2.15 s. Per-ledger row conservation asserted **four times** before any result returns; violation raises `RowConservationError`. |
-| **Measured accuracy** | §7; README "Measured accuracy" | Per-type P/R/F1, both sets, both modes. Easy micro F1 **1.000**; hard micro F1 **0.615** rules-only, **0.731** with agent. Rules-only path needs no API key. |
-| **Honest exception list** | §8; README "Honest exception list" | 7 orders named. Sweep: 29 refunds vs 11 shortfalls, **19 refunds below the largest shortfall**, best achievable **3 errors**. |
-| **"One cherry-picked match proves nothing"** | §6; `bb2398f` | Whole-batch results only. Both sets scored in full, reported separately. The adversarial set exists so the numbers are not a self-report; the rules were **deliberately not tuned** to pass it. |
+| **Throughput** | README "Throughput"; `src/matching/engine.py` — `82c74d9` | 130 orders / 511 rows, median **0.136–0.189 s** across two runs of 7 (see the timing note at the top). Cold start 1.27–2.15 s. Per-ledger row conservation asserted **four times** before any result returns; violation raises `RowConservationError`. |
+| **Measured accuracy** | §9; README "Measured accuracy" | Per-type P/R/F1, both sets, both modes. Easy micro F1 **1.000**; hard micro F1 **0.615** rules-only, **0.731** with agent. Rules-only path needs no API key. |
+| **Honest exception list** | §10; README "Honest exception list" | 7 orders named. Sweep: 29 refunds vs 11 shortfalls, **19 refunds below the largest shortfall**, best achievable **3 errors**. |
+| **"One cherry-picked match proves nothing"** | §8; `bb2398f` | Whole-batch results only. Both sets scored in full, reported separately. The adversarial set exists so the numbers are not a self-report; the rules were **deliberately not tuned** to pass it. |
 
 ### Where the fit is partial
 
@@ -78,7 +87,7 @@ Stated here rather than left for a reader to discover.
    labelled set, not a second qualifying batch.
 4. **The headline number is the weakest evidence.** Easy-set micro F1
    of 1.000 is the figure most likely to be skimmed and the one that
-   means least — it is a statement about the fixtures (§6). The hard
+   means least — it is a statement about the fixtures (§8). The hard
    set's 0.615 / 0.731 is the honest measure.
 5. **130 orders is not a throughput test.** 688 orders/second is real
    and reproducible; it is also measured on a batch that fits in memory
@@ -206,7 +215,106 @@ are never compared with `==`; every comparison goes through
 
 ---
 
-## 3. Data model
+## 3. What AI and machine learning are actually doing here
+
+Stated precisely, because "AI finance controller" invites a reading this
+project does not support.
+
+### What is not here
+
+**No model was trained.** There are no weights in this repository, no
+fitting step, no learning from data, no gradient anywhere. Nothing
+observes the fixtures and adjusts a parameter. Verified:
+
+```
+$ grep -rniE "\.fit\(|sklearn|torch|tensorflow|xgboost|train_test_split|model\.train" src/ evals/ tests/
+  no training/fitting API used anywhere in the project
+```
+
+The three tunable constants in `config.py` —
+`CHARGEBACK_FEE_PAISE = 50000`, `REFUND_THRESHOLD_PCT = 0.20`,
+`REFUND_NEAR_THRESHOLD_PCT = 0.22` — were set by a human reading a ratio
+distribution and are documented in the file as *"heuristics tuned on
+synthetic fixtures, not contractual values"*. **That is a person
+choosing a number, not a model learning one.** Calling it machine
+learning would be false.
+
+### What is here
+
+Two things, and they are different in kind:
+
+1. **Deterministic rule-based detection.** Five detectors over pandas.
+   Each is an arithmetic predicate — an identity matched within
+   tolerance, or a ratio compared to a constant. Fully reproducible;
+   the same input always gives the same output.
+2. **Stateless calls to a pre-trained LLM** for classification and
+   explanation. No fine-tuning, no embeddings, no retrieval, no vector
+   store. The model is used as it ships.
+
+### The LLM call surface, exactly
+
+Measured from the live code:
+
+| Property | Value |
+|---|---|
+| Model | `claude-sonnet-4-6` |
+| Calls per full eval run, cold cache | **43** (23 easy + 20 hard) |
+| Calls per run, warm cache | **0** — `cache: 43 hit / 0 miss` |
+| `max_tokens` | 4000 |
+| System prompt | 2,367 characters, one static string, `PROMPT_VERSION = 2` |
+| Tools passed | **none** — no `tools`, `tool_choice` or `tool_runner` parameter |
+| Conversation state | none; each call is independent |
+| Routed | only findings at `medium` or `low` confidence |
+
+**What the prompt contains:** the domain (four ledgers, the settlement
+identity, the five anomaly types), an explicit statement that the rules'
+threshold is their known weak point, an instruction to defer to the
+rule absent a specific stated reason, and the finding itself — its rule
+label, rule confidence, rule reasoning, and the order's ledger facts
+with every amount **pre-computed in Python**. The model is given
+arithmetic; it is never asked to perform any.
+
+**Response schema:** `{"label", "confidence", "explanation"}` — one of
+five labels, one of three confidence levels, one sentence. Parsed with
+`json.loads` behind a regex; anything malformed keeps the rule's label
+and is recorded as `unparseable`.
+
+**Caching:** responses are written to `.llm_cache/` keyed by
+SHA-256 of `(model, prompt_version, system_prompt, user_prompt)`. A
+re-run is free and byte-identical. Editing the prompt changes the key
+and correctly invalidates everything.
+
+### What the LLM is structurally prevented from doing
+
+- **Touching a number.** Its response schema has no numeric field.
+  `classify()` copies `expected_amount_paise`, `actual_amount_paise` and
+  `delta_paise` through untouched, and a test asserts frame equality
+  before and after — including a variant that forces an override on
+  every routed row.
+- **Deciding what runs next.** No tools, no loop. `classify()` drives
+  the iteration and calls the model once per finding.
+- **Overriding a confident rule.** High-confidence findings are never
+  routed. A disagreement is applied only at `high` confidence;
+  otherwise the rule's label and confidence stand.
+- **Reaching the answer key.** `ground_truth.csv` is readable only by
+  `evals/run_eval.py`.
+
+### What it actually contributes, measured
+
+**Hard-set micro F1: 0.615 → 0.731.** The entire gain is one anomaly
+class — chargebacks carrying a fee other than ₹500 — going 0.571 →
+1.000. On the easy set it routed 23 findings, confirmed 23, and changed
+nothing. At the refund/shortfall boundary it changed nothing, correctly
+(§10).
+
+So: **the LLM improved one of five anomaly classes on one of two fixture
+sets, and left everything else where the rules put it.** That is a real
+contribution to a real weakness, and it is not the system reconciling
+the books. The deterministic layer does that.
+
+---
+
+## 4. Data model
 
 Full spec: [`docs/data-model.md`](data-model.md). Summary below.
 
@@ -319,7 +427,7 @@ All concern production data; none blocks fixture work.
 
 ---
 
-## 4. Build history
+## 5. Build history
 
 Twenty-seven commits. Documentation and correctness work came before
 any code — the data model was written and the formula corrected before
@@ -348,7 +456,7 @@ on `.xlsx`, `.json` and `.csv` probes, plus `git add -n` proving only
 the README was stageable.
 
 **`b334d73` `fix: correct expected payout for missing-payment ground
-truth rows`** — see §5.
+truth rows`** — see §7.
 
 **`0dc74c2` `docs: add data model spec`** — 247 lines, every fact
 measured. *Verified:* the three identities above, cardinality, the 0-paise
@@ -365,7 +473,7 @@ Package tree, `config.py` with `TOLERANCE_PAISE = 100` and
 
 *Verified:* `config.py` imports and yields the expected values; all five
 `src` packages import. *Failure found:* the timezone constant could not
-be resolved at all — see §5.
+be resolved at all — see §7.
 
 **Judgement call:** `config.py` at the repo root rather than under
 `src/`, matching how CLAUDE.md §8 and the stage prompt both refer to it.
@@ -429,7 +537,7 @@ data.
 *Verified:* the three detectors partition every underpayment — union
 equals all 28, pairwise intersections empty.
 
-`d0f4717` then moved the high-confidence boundary off 0.25 — see §5.
+`d0f4717` then moved the high-confidence boundary off 0.25 — see §7.
 
 ### Stage 5 — shortfalls, missing payments, overpayments (`40b429f`)
 
@@ -450,7 +558,7 @@ The user was asked before it was built, per the stage prompt.
 The user ordered the eval harness **before** the agent layer, to
 establish a rules-only baseline to measure the agent against. This was
 correct and immediately productive: it revealed that the baseline was at
-1.000 and therefore useless as a baseline (§5), which prompted the hard
+1.000 and therefore useless as a baseline (§7), which prompted the hard
 fixture set. Had stage 6 come first, the agent would have been built
 against a target it could only damage.
 
@@ -478,12 +586,12 @@ output.
 
 ### Stage 6 — agent layer (`7c33ec4` prep, `63f3080`, 29 tests)
 
-`7c33ec4` first fixed the confidence metric (§5), because confidence was
+`7c33ec4` first fixed the confidence metric (§7), because confidence was
 to be the routing signal and it was measured to run backwards.
 
 The agent receives finding + ledger facts, returns label, confidence and
 one sentence. Routing sends only medium/low confidence. An override
-requires **high** confidence — see §5.
+requires **high** confidence — see §7.
 
 *Verified:* 43 live API calls, responses cached to `.llm_cache/` keyed by
 model + prompt version + prompt text. A re-run reports `43 hit / 0 miss`.
@@ -509,6 +617,40 @@ in the log; Streamlit's own `AppTest` harness executed the script with
 no-report state was verified by moving the CSV away and re-running: 0
 exceptions, 0 dataframes, the command shown.
 
+### Documentation and alignment (`1b7be6a` … `72c14b6`, 5 commits)
+
+No code changed in any of these; the eval output is identical before and
+after all five.
+
+**`1b7be6a` `docs: add comprehensive project report`** — the first
+version of this document, 1,111 lines. Produced one analysis the project
+did not previously have: the threshold sweep (§6.6), which converted the
+claim that the refund/shortfall boundary is unfixable from an assertion
+into a proof.
+
+**`1a33286` `docs: document how the project meets the Track 04 bar`** —
+README section addressing throughput, measured accuracy and the honest
+exception list by name. 197 insertions, 0 deletions; the existing
+caveats about the easy set were left untouched deliberately, because
+they are the credibility of the rest.
+
+**`d45639a` `docs: add Track 04 traceability to the project report`** —
+the traceability tables at the top of this document, plus a "where the
+fit is partial" list naming five caveats rather than leaving a reader to
+find them. All cited commit hashes verified to resolve before commit.
+
+**`30273fc` `docs: state the agent's deliberate lack of tool access`** —
+two sentences in the README architecture section: the LLM has no tools,
+no loop, and no control over program flow, and that is the determinism
+boundary applied to control flow rather than only to arithmetic.
+*Verified rather than asserted:* `client.py` passes no `tools`,
+`tool_choice` or `tool_runner` parameter to the API.
+
+**`72c14b6` `docs: explain where the reconciliation loop ends and why`**
+— a README section defending the scope boundary: this closes the
+identification loop, not remediation. Produced a measurement that
+changed the recommendation it was written to support — see §7.6.
+
 ### Tags
 
 | Tag | Commit | Contents |
@@ -516,59 +658,429 @@ exceptions, 0 dataframes, the command shown.
 | `v0.2` | `64b8b5a` | rules + agent + report |
 | `v0.3` | `beeb5a4` | + dashboard; accuracy re-measured, unchanged |
 
+Both tags predate the documentation commits above. Neither was moved:
+a tag records a measured accuracy state, and none of the five changed a
+number.
+
 ---
 
-## 5. What broke
+## 6. The mathematics
 
-Six incidents. Each is recorded with the mathematics, not a summary.
+Everything the deterministic layer does, derived. Row counts are the
+number of rows each statement was checked against, not a sample.
 
-### 5.1 The timezone constant could not be resolved (stage 1)
+### 6.1 The settlement identity
 
-**Symptom.** `config.TIMEZONE = "Asia/Kolkata"` imported fine, but
-loading it raised:
+For an order with a payment row and a fee row:
+
+```
+expected_settlement_paise = payments.amount_paise
+                          − fees.fee_paise
+                          − fees.gst_on_fee_paise
+
+                          ≡ payments.amount_paise
+                          − fees.total_deduction_paise
+
+delta_paise = settlements.amount_paise − expected_settlement_paise
+```
+
+A negative delta means the merchant was underpaid. An order is flagged
+when `abs(delta_paise) > TOLERANCE_PAISE`.
+
+**Verified, not assumed.** Across the **99 orders carrying no anomaly**,
+`settlements.amount_paise` equals the expression above with a maximum
+absolute delta of **0 paise**. Not "within tolerance" — exactly zero.
+The tolerance absorbs nothing on this data; it exists for real exports.
+
+### 6.2 The sub-identities, with row counts
+
+Each checked against every row, no sampling:
+
+| Identity | Checked against | Result |
+|---|---|---|
+| `net + gst == gross` | 130 / 130 orders | exact, 0 mismatches |
+| `fee + gst_on_fee == total_deduction` | 127 / 127 fee rows | exact, 0 mismatches |
+| `payments.amount == orders.gross` | 127 / 127 matched pairs | exact, 0 mismatches |
+
+Two further relationships, derived from the input ledgers alone and
+never from the answer key:
+
+| Relationship | Checked against | Result |
+|---|---|---|
+| `fee == round(amount × 0.02)` | 127 / 127 | exact |
+| `gst_on_fee == round(fee × 0.18)` | 127 / 127 | exact |
+
+The second pair is *observed structure in the fixtures*, not a
+contractual rate. It is used to reason about the data, never to compute
+a finding — the detectors read the actual per-row `fee_paise`.
+
+### 6.3 Why integer paise, worked
+
+The project stores every amount as an integer count of paise. The
+alternative — floats denominated in rupees — fails on this data, and
+here is a case from the fixtures rather than a textbook example.
+
+`ord_00046` has `net_amount_paise = 2758875`. Computing 18% GST:
+
+```
+integer paise path (what the project does)
+  2758875 × 0.18            = 496597.5
+  round(...)                = 496598
+
+float rupees path (the naive alternative)
+  2758875 / 100             = 27588.75
+  27588.75 × 0.18           = 4965.974999999999
+      exact binary value    = 4965.9749999999994543031789362430572509765625
+  round(..., 2)             = 4965.97          <- the .975 is already gone
+  × 100                     = 496597.0
+  round to paise            = 496597
+
+  divergence                = 1 paisa
+```
+
+The multiplication lands *below* the true 4965.975 in binary floating
+point, so rounding to two decimal places truncates a half-paisa that
+should have rounded up.
+
+Round-tripping fails independently of any arithmetic. **18 of the 127
+payment amounts** do not survive paise → rupees → paise:
+
+```
+1911685 -> 19116.85 -> 1911684.9999999998   int() gives 1911684
+3915609 -> 39156.09 -> 3915608.9999999995   int() gives 3915608
+4087730 -> 40877.3  -> 4087730.0000000005   int() gives 4087730
+```
+
+Two of those three lose a paisa to truncation. Summing all **1,335
+amounts** in both fixture sets as float rupees and converting back gives
+`1700051271.0000012` against an exact `1700051271` — an error of
+1.19 × 10⁻⁶ paise on this data, and unbounded in general.
+
+Integer paise makes the whole class impossible: `10 + 20 == 30` is true
+where `0.1 + 0.2 == 0.3` is false.
+
+### 6.4 The shortfall ratio, and what it does not measure
+
+```
+shortfall_paise = −delta_paise                    (positive when underpaid)
+ratio           = shortfall_paise / payment_amount_paise
+```
+
+The ratio is the **size of the gap relative to what was captured**. It
+is the only feature available to separate a refund from a shortfall, and
+that is the whole problem: it measures *magnitude*, not *cause*. A 30%
+gap and a 30% gap look identical whether the money went back to a
+customer or was never credited by the bank.
+
+`shortfall_ratio()` guards a zero payment rather than emitting infinity.
+
+### 6.5 The chargeback signature, derived
+
+A chargeback reverses the entire captured payment **and** withholds a
+penalty on top. So:
+
+```
+shortfall = payment + fee_cb
+
+ratio     = shortfall / payment
+          = (payment + fee_cb) / payment
+          = 1 + fee_cb / payment
+```
+
+Because `fee_cb > 0`, the ratio is **always greater than 1** — the
+merchant loses more than the sale was worth. Measured on the five
+chargebacks in the adversarial set:
+
+| Order | Payment (paise) | `fee_cb` (paise) | Ratio | vs the 0.20 threshold |
+|---|---:|---:|---:|---:|
+| `ord_h0025` | 1,711,000 | 25,000 | 1.0146 | 5.1× |
+| `ord_h0026` | 2,395,400 | 75,000 | 1.0313 | 5.2× |
+| `ord_h0027` | 896,800 | 100,000 | 1.1115 | 5.6× |
+| `ord_h0028` | 2,230,200 | 50,000 | 1.0224 | 5.1× |
+| `ord_h0029` | 637,200 | 50,000 | 1.0785 | 5.4× |
+
+**This is why a chargeback with a non-standard fee is misread as a
+refund.** The detector matches `|delta + payment + CHARGEBACK_FEE_PAISE|
+≤ TOLERANCE_PAISE`, which fails when `fee_cb ≠ 50000`. The row then
+falls through to the refund rule — and its ratio is *five times* the
+refund threshold, so the refund rule claims it with room to spare. The
+error is not marginal; it is the most confident possible wrong answer.
+See §7.4.
+
+### 6.6 The threshold sweep
+
+The refund/shortfall split is a single constant compared against the
+ratio. Is there a *better* constant? Sweeping every candidate across
+both sets combined:
+
+```
+threshold-decided orders: 40 (29 refunds, 11 shortfalls)
+refund ratio range   : 0.0800 .. 1.0000
+shortfall ratio range: 0.0020 .. 0.3500
+OVERLAP: refunds below the largest shortfall = 19
+
+ threshold  errors   easy   hard
+    0.0309       3      1      2      <- best achievable
+    0.0800       3      1      2
+    0.0305       4      2      2
+    0.1200       4      1      3
+    0.0260       6      3      3
+
+BEST POSSIBLE threshold 0.0309: 3 errors (easy 1, hard 2)
+errors remaining even there:
+  ord_00011    easy  ratio=0.1818  shortfall called refund
+  ord_h0024    hard  ratio=0.2800  shortfall called refund
+  ord_h0023    hard  ratio=0.3500  shortfall called refund
+```
+
+**The two classes overlap on this axis.** Refund ratios run 0.0800 to
+1.0000; shortfall ratios run 0.0020 to 0.3500. **Nineteen refunds sit
+below the largest shortfall.** Sorted, they interleave:
+
+```
+0.1200 refund   0.1421 refund   0.1500 refund   0.1728 refund
+0.2124 refund   0.2378 refund   0.2573 refund   0.2687 refund
+0.2800 SHORTFALL
+0.3000 refund   0.3163 refund   0.3340 refund
+0.3500 SHORTFALL
+```
+
+**No constant separates two interleaved sets.** That is not a statement
+about which constant was chosen; it is a statement about the feature.
+The best achievable is 3 errors, not 0, and reaching even that would
+mean fitting the constant to the answer key — forbidden by CLAUDE.md
+§11, and it would move the overfitting rather than remove it. The
+shipped 0.20 gives 7 errors. Neither is a solution; see §10.
+
+### 6.7 Precision, recall and F1, computed by hand
+
+So a reader can check the harness rather than trust it. Taking
+**chargeback on the adversarial set, rules only**:
+
+```
+predicted chargeback : {ord_h0028, ord_h0029}
+truth     chargeback : {ord_h0025, ord_h0026, ord_h0027, ord_h0028, ord_h0029}
+
+TP = |predicted ∩ truth| = 2
+FP = |predicted − truth| = 0
+FN = |truth − predicted| = 3
+
+precision = TP / (TP + FP) = 2 / (2 + 0) = 1.0000
+recall    = TP / (TP + FN) = 2 / (2 + 3) = 0.4000
+F1        = 2PR / (P + R)  = 2 × 1.0 × 0.4 / (1.0 + 0.4) = 0.5714
+```
+
+Which is exactly what the harness prints:
+
+```
+chargeback                  5     2    2    0    3    1.000    0.400    0.571
+```
+
+Note what the numbers say: **precision 1.000 with recall 0.400.** The
+rule never calls a non-chargeback a chargeback — its signature is exact
+— but it misses three of five, because those three carry a fee it does
+not expect. Reporting only precision here would be flattering and
+useless. Recall is the priority metric for exactly this reason.
+
+**A wrong label costs twice.** Calling a shortfall a refund is a false
+positive for `refund_not_reflected` *and* a false negative for
+`settlement_shortfall`. `tests/test_eval.py` pins that behaviour so the
+harness cannot quietly forgive a misclassification as a near-miss.
+
+### 6.8 Tolerance
+
+```
+flagged  ⟺  abs(delta_paise) > TOLERANCE_PAISE        TOLERANCE_PAISE = 100
+```
+
+Never `==`. On the easy set, **99 orders fall within tolerance and the
+largest `|delta|` among them is 0 paise** — every clean order is exactly
+clean. The tolerance is absorbing nothing here; it is there for real
+exports where rounding between systems is real.
+
+---
+
+## 7. What broke
+
+Eight incidents. Each is given as symptom, detection, root cause, the
+mathematics or logic that failed, the fix chosen, the fix rejected and
+why, the measured before and after, and what it generalises to.
+
+This is the longest section in the document deliberately. The failures
+are more informative than the successes, and several of them changed the
+design rather than just being patched.
+
+---
+
+### 7.1 The timezone constant could not be resolved
+
+**Symptom.** `config.TIMEZONE = "Asia/Kolkata"` imported without error.
+Loading it did not:
 
 ```
 zoneinfo._common.ZoneInfoNotFoundError: 'No time zone found with key Asia/Kolkata'
 ```
 
+**How it was detected.** CLAUDE.md §12 requires running a thing before
+claiming it works. Stage 1 produced only constants and empty packages,
+so the temptation was to assert the scaffold was fine. Actually
+exercising the constant surfaced it.
+
 **Root cause.** Windows ships no system tz database. Python's stdlib
 `zoneinfo` reads one from disk and finds nothing:
 
 ```
-zoneinfo.TZPATH: ()
-available_timezones(): 0
+zoneinfo.TZPATH:        ()
+available_timezones():  0
 ```
 
-Zero timezones available — not a missing entry, an empty database.
+**The logic that failed.** Not a missing *entry* — an empty *database*.
+Zero timezones available. A lookup of any key would have failed
+identically, so no amount of checking the spelling of "Asia/Kolkata"
+would have found it.
 
-**Why it mattered.** The constant was a value that *looked* correct and
-could not be used. It would have surfaced as a Stage 2 loader crash, far
-from its cause.
+**Fix chosen.** `tzdata` added to `requirements.txt`, with the
+measurement recorded in a comment so the next reader knows why a
+timezone package is a dependency of a reconciliation tool.
 
-**Fix.** `tzdata` added to `requirements.txt` with the measurement in a
-comment. After installation:
+**Fix rejected.** Dropping `zoneinfo` for pandas' tz handling, which
+bundles its own database. Rejected because pandas 3.0 dropped `pytz` and
+declares `tzdata` as a hard dependency anyway — the explicit line
+documents a real requirement instead of relying on a transitive one that
+a future pandas could drop.
+
+**Before and after.**
 
 ```
-available_timezones(): 598 keys
-ZoneInfo(config.TIMEZONE) -> Asia/Kolkata
-2026-02-01 16:08:00+05:30   (utcoffset 5:30:00)
+before:  available_timezones() -> 0 keys        ZoneInfo(...) -> raises
+after:   available_timezones() -> 598 keys      ZoneInfo(...) -> Asia/Kolkata
+         2026-02-01 16:08:00+05:30   (utcoffset 5:30:00)
 ```
 
-**Why this fix.** The alternative was to drop `zoneinfo` for pandas'
-tz handling, which bundles its own database. Rejected: pandas 3.0
-dropped `pytz` and declares `tzdata` as a hard dependency anyway, so the
-explicit line documents a real requirement rather than relying on a
-transitive one that a future pandas could drop.
+**Generalises to.** A configuration value that *looks* correct can be
+unusable. Validate config by using it, not by reading it. Had this
+waited for stage 2, it would have surfaced as a loader crash far from
+its cause.
 
-**Correction to an earlier claim.** When adding it I said pandas bundles
-`pytz` so it "would probably have worked anyway". That was wrong for
-pandas 3.0 — `pytz` is not installed. Corrected in the session and
-recorded here.
+---
 
-### 5.2 Confidence measured threshold distance, not certainty (`7c33ec4`)
+### 7.2 The answer key imputed a fee on payments that never happened
 
-**Symptom.** Confidence was to be the agent routing signal. Measured
-against the hard set's answer key, it ran backwards:
+**Symptom.** Implementing the missing-payment rule, the answer key's
+`expected_amount_paise` for the three missing-payment rows did not equal
+`orders.gross_amount_paise`:
+
+```
+ord_00006: gross=1475793  key=1440964  diff=34829
+ord_00065: gross=1983086  key=1936285  diff=46801
+ord_00067: gross=5383503  key=5256452  diff=127051
+```
+
+**How it was detected.** By comparing the rule against the key *before*
+changing either, and treating a disagreement as a question rather than
+as evidence the rule was wrong.
+
+**Root cause.** The fixture generator applied the 2% + 18% deduction
+uniformly across all orders — including three where no payment ever
+reached the gateway, and therefore no commission was ever charged.
+
+**The mathematics.** Every difference is the imputed fee, exactly:
+
+```
+round(1475793 × 0.02 × 1.18) = 34829   ✓
+round(1983086 × 0.02 × 1.18) = 46801   ✓
+round(5383503 × 0.02 × 1.18) = 127051  ✓
+```
+
+Three for three, to the paisa. That precision is what identified it as
+systematic rather than coincidental.
+
+**Fix chosen.** Correct the key. Three rows in `ground_truth.csv`:
+
+```
+-ord_00065,...,1936285,0,-1936285,...
++ord_00065,...,1983086,0,-1983086,...
+```
+
+**Fix rejected.** "Correcting" the detector to match the key. Rejected
+twice over: it would have understated the merchant's loss by 2.36% on
+those rows, and it would have meant shaping detection logic to the
+answer key — which CLAUDE.md §11 forbids outright, and which would have
+invalidated every accuracy number the project later reports.
+
+**Before and after.** After the correction, re-verified: still 31 rows
+with the same type distribution; `actual − expected == delta` on all 31;
+all three missing-payment rows equal `orders.gross`; the 28 rows that do
+have payments still satisfy `payment − total_deduction`.
+
+**Generalises to.** The answer key is not automatically right. When a
+rule and a label disagree, the question is which one is wrong — and the
+label is not exempt. The first handling of this documented the
+divergence and forbade tuning toward the key; identifying it as a
+generator bug came from asking rather than assuming.
+
+---
+
+### 7.3 The confidence boundary sat on a cluster point
+
+**Symptom.** With `REFUND_HIGH_CONFIDENCE_PCT = 0.25`, one of fifteen
+refunds came back medium instead of high: `ord_00026`. The other
+fourteen were high.
+
+**How it was detected.** Reading the confidence split in the eval output
+— 14 high / 1 medium — and noticing it was inconsistent with every
+refund being at 25% or above.
+
+**Root cause.** The boundary was placed exactly where the data clusters.
+
+**The mathematics.** The generator built refunds as percentage slices,
+rounding to integer paise:
+
+```
+payment                = 5259413
+round(payment × 0.25)  = 1314853        <- the stored shortfall
+exact ratio            = 1314853 / 5259413
+                       = 0.2499999524661782598172077378
+float ratio            = 0.24999995246617826
+ratio >= 0.25          = False
+```
+
+`payment × 0.25 = 1314853.25`, which rounds **down**. The stored
+shortfall is therefore a hair under a true quarter, and the ratio lands
+below 0.25. Four of the five 25% refunds happened to round the other
+way; this one did not. **Which side of the boundary a true 25% refund
+fell on was decided by rounding noise, not by the data.**
+
+**Fix chosen.** Move the boundary to 0.22, documented as a narrow margin
+*above* `REFUND_THRESHOLD_PCT` rather than an independent value, so it
+can never coincide with a common refund percentage (25, 30, 50, 100).
+Renamed `REFUND_NEAR_THRESHOLD_PCT` to match what it now does.
+
+**Fix rejected.** Rounding the ratio before comparing. Rejected because
+it hides the problem for this dataset while leaving the boundary on the
+cluster point — any other rounding convention, or any other payment
+amount, resurfaces it. Moving the line off the cluster is structural;
+rounding is a patch over one symptom.
+
+**Before and after.**
+
+```
+before:  ord_00026 ratio 0.2499999525 -> medium   (14 high / 1 medium)
+after:   ord_00026 ratio 0.2499999525 -> high     (15 high / 0 medium)
+         lowest real refund ratio 0.250000, margin above 0.22 = 0.030000
+```
+
+**Generalises to.** Never put a decision boundary where the data
+clusters. If a threshold sits on a common value, the comparison is
+decided by floating-point representation rather than by meaning.
+
+---
+
+### 7.4 Confidence measured threshold distance, not certainty
+
+**Symptom.** Confidence was to be the routing signal for the agent
+layer. Cross-tabbed against correctness on the adversarial set, it ran
+**backwards**:
 
 ```
 confidence   correct  wrong  total  P(wrong)
@@ -577,24 +1089,31 @@ medium             2      5      7     0.714
 low                2      0      2     0.000
 ```
 
-**The low-confidence bucket was 100% correct. Five of the ten errors were
-marked high.**
+The low-confidence bucket was **100% correct**. Five of the ten errors
+were marked **high**.
 
-**Root cause — the mathematics.** Confidence was computed from the
-shortfall ratio's distance from the 20%/25% thresholds. But the
-*threshold* is the error source. A chargeback carrying a fee other than
-₹500 produces a shortfall of
+**How it was detected.** By asking whether confidence was usable as a
+routing signal *before* designing around it, and measuring rather than
+assuming. Had the agent been built first, this would have surfaced as
+unexplained agent behaviour instead of a clean measurement.
+
+**Root cause.** Confidence was computed from the shortfall ratio's
+distance from the refund threshold. But the threshold *is* the error
+source, so distance from it carries no information about correctness.
+
+**The mathematics.** From §6.5, a chargeback's ratio is
 
 ```
-shortfall = payment + fee
-ratio     = (payment + fee) / payment  ≈ 1.05
+ratio = 1 + fee_cb / payment  ≈ 1.01 to 1.11
 ```
 
-— enormously above 0.25, so the refund rule fired at maximum confidence
-**on a chargeback**. Distance from a line says nothing about whether the
-line belongs there, and the line is exactly what these rules get wrong.
+— five times the 0.20 refund threshold. When `fee_cb ≠ 50000` the
+chargeback signature does not match, the row falls to the refund rule,
+and its enormous distance from the threshold is read as **certainty**.
+The rule was structurally most confident exactly where it was most
+wrong.
 
-**Consequence for routing.** At the not-low bar:
+**What this did to routing.** At the old confidence:
 
 ```
 low only     sends  2/26, catches  0/10 errors (0%)
@@ -604,124 +1123,44 @@ everything   sends 26/26, catches 10/10 errors (100%)
 
 Nothing between useless and send-everything.
 
-**Fix.** Confidence became a property of the *detector*, not the row:
+**Fix chosen.** Confidence became a property of the **detector**, not of
+the row:
 
 - `chargeback`, `payment_not_received`, `settlement_excess` → **high**.
-  Each is an arithmetic identity that matches within tolerance or does
-  not; there is no continuum to be wrong about.
-- `refund_not_reflected`, `settlement_shortfall` → **never high**.
-  Medium clear of the boundary band, low inside it.
+  Each matches an arithmetic identity within tolerance or does not;
+  there is no continuum to be wrong about.
+- `refund_not_reflected`, `settlement_shortfall` → **never high**,
+  however large the gap. Medium clear of the boundary band, low inside
+  it.
 
-After:
+**Fix rejected.** Routing by *rule provenance* instead — send everything
+the threshold decided, never send the three sharp types. That also
+catches 100% of errors. Rejected as the primary mechanism because
+confidence is a field a human reads: a field reading "high" on five
+wrong answers misleads a reviewer exactly as it misleads a router.
+Fixing the field fixed both consumers.
 
-```
-confidence   correct  wrong  total  P(wrong)
-high               6      0      6     0.000
-medium             9     10     19     0.526
-low                1      0      1     0.000
-
-route low+medium: 20/26 sent, catches 10/10 errors (100%)
-```
-
-**Classification did not change** — easy stayed 1.000, hard stayed 0.615.
-Only the confidence field moved.
-
-**Why this fix over the alternative.** The alternative signal considered
-was routing by *rule provenance*: send everything the threshold decided,
-never send the three sharp types. That also catches 100% of errors. It
-was rejected as the primary mechanism because confidence is a field a
-human reads — a field saying "high" on five wrong answers misleads a
-reviewer exactly as it misleads a router. Fixing the field fixed both.
-
-### 5.3 The 0.25 cluster point (`d0f4717`)
-
-**Symptom.** With the boundary at 0.25, one of fifteen refunds came back
-medium instead of high: `ord_00026`.
-
-**Root cause — the mathematics.** The generator built refunds as exact
-percentage slices, rounding to integer paise:
+**Before and after.**
 
 ```
-payment          = 5259413
-round(payment × 0.25) = 1314853    ← the stored shortfall
-exact ratio      = 1314853 / 5259413
-                 = 0.2499999524661782598172077378
-float ratio      = 0.24999995246617826
-ratio >= 0.25    = False
+before:  high 12 correct /  5 wrong (0.294)   low+medium catches  5/10 (50%)
+after:   high  6 correct /  0 wrong (0.000)   low+medium catches 10/10 (100%)
+         medium 9 correct / 10 wrong (0.526)
+         low     1 correct /  0 wrong (0.000)
+
+classification UNCHANGED: easy 1.000, hard 0.615 micro F1
 ```
 
-An exact 25% refund computes to `0.2499999…` because `payment × 0.25`
-was rounded *down*. The boundary sat precisely on a cluster point in the
-data, so which side a true 25% refund landed on was decided by rounding
-noise. Four of the five 25% refunds landed above; this one below.
+Only the confidence field moved. No order changed label.
 
-**Fix.** Boundary moved to 0.22, documented as a narrow margin *above*
-`REFUND_THRESHOLD_PCT` rather than an independent value, so it can never
-coincide with a common refund percentage (25, 30, 50, 100).
+**Generalises to.** A confidence score must measure uncertainty in the
+thing being decided, not distance from the mechanism doing the deciding.
+When those two are conflated, the score is most wrong exactly where the
+mechanism is.
 
-```
-ord_00026 ratio = 0.2499999525  ->  high   (was medium)
-lowest real refund ratio = 0.250000
-margin above the new 0.22 boundary = 0.030000
-```
+---
 
-**Why this fix.** The alternative was rounding the ratio before
-comparing. Rejected: it hides the problem for this dataset while leaving
-the boundary on the cluster point, so any other rounding convention
-resurfaces it. Moving the line off the cluster is structural.
-
-### 5.4 Ground truth imputed a fee on payments that never happened (`b334d73`)
-
-**Symptom.** Discovered while implementing the missing-payment rule. The
-answer key's `expected_amount_paise` for the three missing-payment rows
-did not equal `orders.gross_amount_paise`:
-
-```
-ord_00006: gross=1475793  gt_expected=1440964  diff=34829
-ord_00065: gross=1983086  gt_expected=1936285  diff=46801
-ord_00067: gross=5383503  gt_expected=5256452  diff=127051
-```
-
-**Root cause — the mathematics.** Every difference equals
-`round(gross × 0.02 × 1.18)` exactly:
-
-```
-round(1475793 × 0.02 × 1.18) = 34829   ✓
-round(1983086 × 0.02 × 1.18) = 46801   ✓
-round(5383503 × 0.02 × 1.18) = 127051  ✓
-```
-
-The fixture generator applied the 2% + 18% deduction uniformly across
-all orders, including three where **no payment ever reached Razorpay**
-and therefore no commission was ever charged.
-
-**Why it mattered.** The answer key was wrong, not the rule. Had this
-gone unnoticed, the detector would have been "corrected" to match a key
-that understated the merchant's loss by 2.36% on those rows — and doing
-so would have meant shaping detection logic to the answer key, which
-§11 forbids outright.
-
-**Fix.** Three rows in `ground_truth.csv` corrected:
-
-```
--ord_00065,...,1936285,0,-1936285,...
-+ord_00065,...,1983086,0,-1983086,...
--ord_00067,...,5256452,0,-5256452,...
-+ord_00067,...,5383503,0,-5383503,...
-```
-
-*Verified after:* still 31 rows with the same type split;
-`actual − expected == delta` on all 31; all 3 missing-payment rows now
-equal `orders.gross`; the 28 rows with payments still satisfy
-`payment − total_deduction`.
-
-**How it was caught.** By flagging a divergence between a rule and the
-key *before* changing either, and asking rather than assuming the rule
-was wrong. The initial handling documented the divergence in
-`docs/data-model.md` and forbade tuning toward the key; the user
-identified it as a generator bug and the key was fixed instead.
-
-### 5.5 The agent regressed the easy set (during stage 6)
+### 7.5 The agent regressed the easy set
 
 **Symptom.** First live agent run, override bar at "not low":
 
@@ -730,30 +1169,35 @@ identified it as a generator bug and the key was fixed instead.
 micro F1       0.968    0.692     (rules-only: 1.000 / 0.615)
 ```
 
-Easy fell from 1.000. Under the user's explicit instruction and
-CLAUDE.md §11 the work stopped and was not committed.
+Easy fell from 1.000.
+
+**How it was detected.** The eval, run before committing, as CLAUDE.md
+§11's regression gate requires. `refund_not_reflected` recall dropped
+1.000 → 0.933 on the baseline set. The commit was blocked and the work
+stopped.
 
 **Root cause.** One order moved: `ord_00026`, `refund_not_reflected` →
-`settlement_shortfall`. The agent's own words:
+`settlement_shortfall`. The agent's own explanation:
 
 > "The shortfall is exactly 25.0% of the captured payment — a
 > suspiciously clean fraction for a real customer refund, which by
 > definition should be an arbitrary amount tied to a specific return."
 
-The reasoning is correct about the real world and exactly backwards for
-this data, **and the prompt caused it**. The system prompt asserted
-*"Real refunds are arbitrary amounts."* In these fixtures, round
-percentages *are* the refund signature. The model reasoned validly from a
-false premise that the prompt supplied.
+**The logic that failed — and it was mine, not the model's.** The system
+prompt asserted *"Real refunds are arbitrary amounts."* That is true of
+the real world and **false of these fixtures**, where round percentages
+are precisely the refund signature. The model reasoned validly from a
+premise the prompt supplied. A false statement in a prompt produces
+confidently wrong output, exactly as a false constant in code does.
 
-It is the same `ord_00026` from §5.3 — the exact-25% refund at
-`0.2499999525`, which is why it sits at medium confidence and was routed
+It is the same `ord_00026` as §7.3 — the exact-25% refund at
+`0.2499999525`, which is why it sat at medium confidence and was routed
 at all. The most fragile order in the set was the one that broke.
 
-**Fix.** The override bar was raised from "not low" to **high**. The
-evidence:
+**Fix chosen.** Raise the override bar from "not low" to **high**. The
+evidence, from the same run:
 
-| Override | Confidence | Outcome |
+| Override | Agent confidence | Outcome |
 |---|---|---|
 | `ord_h0025` refund → chargeback | high | FIXED |
 | `ord_h0026` refund → chargeback | high | FIXED |
@@ -763,67 +1207,171 @@ evidence:
 
 Every correct override was confident; every damaging one was hedged.
 
-**Why this fix over the alternative.** The alternative was deleting the
-"real refunds are arbitrary amounts" sentence from the prompt. Rejected
-by the user as the primary fix, and rightly: it would have been tuning
-the prompt against the answer key, and it fixes one sentence rather than
-the class of problem. The confidence gate is structural — it discards
-hedged overrides regardless of what caused them.
+**Fix rejected.** Deleting the "real refunds are arbitrary amounts"
+sentence from the prompt. Rejected because it would have been tuning the
+prompt against the answer key, and because it fixes one sentence rather
+than the class of problem. The confidence gate discards hedged overrides
+regardless of what caused them.
 
-**Result after:** easy back to 1.000, hard up to 0.731. Both breaks gone,
-all three fixes retained.
+**A consequence handled.** Raising the gate made another prompt sentence
+false — it had told the model that a `low` override would be discarded.
+It was replaced with an instruction to report genuine certainty, and
+**the threshold is deliberately not named**: telling a model which value
+unlocks an override invites it to report that value rather than its
+actual confidence, destroying the signal the gate depends on. A test
+asserts `"high"` appears in the prompt only inside the JSON schema line.
 
-**Side effect handled.** Raising the gate made a prompt sentence false
-("say low and your override will be discarded"). It was replaced with an
-instruction to report genuine certainty, and **the threshold is
-deliberately not named** — telling a model which value unlocks an
-override invites it to report that value instead of its actual
-confidence, destroying the signal the gate depends on. A test asserts
-`"high"` appears in the prompt only inside the JSON schema line.
+**Before and after.**
 
-### 5.6 grep-versus-AST false positives (recurring)
+```
+not-low bar:  easy 0.968 micro F1  |  hard 0.692  |  3 fixed, 2 broke
+high bar:     easy 1.000 micro F1  |  hard 0.731  |  3 fixed, 0 broke
+```
+
+**Generalises to.** A prompt is code, and a false claim in it is a bug
+with the same consequences. Also: when a system can only regress on one
+dataset and improve on another, gate the change on the dataset it can
+damage.
+
+---
+
+### 7.6 `ord_h0022` — confidence is safe going in, unsafe coming out
+
+**Symptom.** None in production. This is a latent hazard caught before
+anything was built on it, which is the reason it is worth recording.
+
+While documenting where remediation would be appropriate, the natural
+description was "action the findings where confidence is high by
+construction". Checking that rather than writing it:
+
+```
+easy: threshold-decided findings marked HIGH by the agent: 12  -> 0 wrong
+hard: threshold-decided findings marked HIGH by the agent:  1  -> 1 wrong (ord_h0022)
+```
+
+**How it was detected.** By testing a phrase before putting it in a
+document. The claim was plausible, consistent with §7.4, and wrong.
+
+**The logic that failed.** §7.4 made confidence trustworthy by making it
+a property of the detector — a `refund_not_reflected` finding could
+never be high. That guarantee holds **on the way into** the agent, which
+is why routing on it is sound. It does **not** hold on the way out: the
+agent returns *its own* confidence, and a confirmation or override at
+high overwrites the detector's medium. After the agent pass, a refund
+finding can carry high confidence, and on the adversarial set exactly
+one does — with the wrong label.
+
+The invariant was established at one stage and silently invalidated by a
+later one.
+
+**Fix chosen.** Specify the remediation filter as **anomaly type**, not
+confidence. The exact-signature classes — `chargeback`,
+`payment_not_received`, `settlement_excess` — measured across both sets
+with the agent pass: 8 of 31 findings on easy (26%), 9 of 26 on hard
+(35%), all high confidence, all scoring 1.000 precision and recall,
+**zero wrong labels on either set**.
+
+**Fix rejected.** Forbidding the agent from raising confidence, so the
+detector's value survives. Rejected because the agent's certainty is
+exactly what gates overrides (§7.5) — clamping it would break the
+mechanism that keeps the easy set at 1.000. The agent's confidence is
+genuine information about the agent's judgement; it simply is not the
+same quantity as the detector's confidence, and the two share a field.
+
+**Generalises to.** A field's guarantees can be invalidated by a later
+stage that writes to it. Verify invariants at the point of *use*, not
+the point of creation — and be suspicious when two stages write
+different meanings into one column.
+
+---
+
+### 7.7 grep-versus-AST false positives
 
 **Symptom.** Three times, a `grep`-based structural check reported a
 violation that did not exist:
 
-1. `grep -rn "ground_truth" src/` → flagged `overpayments.py`, which
-   only *mentions* the answer key in a docstring explaining that the
-   eval must report `settlement_excess` separately.
-2. `grep -rnE "from src\.(matching|detectors|agent)" src/dashboard/` →
+1. `grep -rn "ground_truth" src/` flagged `overpayments.py`, which only
+   *mentions* the answer key in a docstring explaining that the eval
+   must report `settlement_excess` separately.
+2. `grep -rnE "from src\.(matching|detectors|agent)" src/dashboard/`
    flagged `app.py`, whose module docstring states the constraint.
 3. `tests/test_dashboard.py::test_dashboard_never_reads_the_answer_key`
    failed on its own module's docstring.
 
+**How it was detected.** By inspecting every hit instead of trusting the
+exit code. A check that reports a violation is not automatically right.
+
 **Root cause.** A file that *documents* a prohibition contains the
 prohibited string. Text search cannot distinguish code from prose about
-code, and the better a module documents its own constraint, the more
+code — and the better a module documents its own constraint, the more
 likely it is to trip its own check.
 
-**Fix.** Structural checks now parse the AST. `_imported_modules()`
-walks `ast.Import` / `ast.ImportFrom` nodes; the answer-key check walks
-`ast.Constant` string nodes with docstrings excluded via
-`_docstring_nodes()`. Actual imports in `src/dashboard/`:
+**Fix chosen.** Parse the AST. `_imported_modules()` walks `ast.Import`
+and `ast.ImportFrom` nodes; the answer-key check walks `ast.Constant`
+string nodes with docstrings excluded via `_docstring_nodes()`. Real
+imports in `src/dashboard/`:
 
 ```
 app.py : sys, pathlib, pandas, streamlit, src.dashboard.data
 data.py: pathlib, pandas
 ```
 
-**Why this fix.** Narrowing the grep pattern (excluding comment lines,
-say) was the alternative. Rejected: it is a heuristic that degrades as
-prose changes, whereas the AST distinguishes an import from a mention by
-construction.
+**Fix rejected.** Narrowing the grep — excluding comment lines, or
+requiring an `import` prefix. Rejected because it is a heuristic that
+degrades as prose changes, whereas the AST distinguishes an import from
+a mention by construction.
 
-**Note on the security audit.** The same lesson applied. The
-high-entropy scan flagged four locations; all four were inspected and
-proved benign (shields.io badge URLs, long Python identifiers). The
-decisive check was not a pattern at all — it read the live key from
-`.env` and searched for that literal string across all 210 objects in
-the full history. Result: `NONE`.
+**Generalises to.** Structural claims need structural checks. This also
+applied during the pre-publication security audit: a high-entropy scan
+flagged four locations, all four benign on inspection (shields.io badge
+URLs, long Python identifiers). The decisive check there was not a
+pattern at all — it read the live key from `.env` and searched for that
+literal string across all 210 objects in the full history. Result:
+`NONE`.
 
 ---
 
-## 6. Evaluation methodology
+### 7.8 My own errors
+
+Not the code's. These are process failures, recorded because a report
+that only lists the software's mistakes is not an honest one.
+
+**The adversarial set reproduces the artifact it was built to avoid.**
+Stage 4 explicitly rejected keying refund detection on "is the shortfall
+an exact whole-percent slice", on the grounds that it is a fingerprint
+of the generator rather than a property of refunds. I then wrote
+`tests/gen_hard.py` and built five of its fourteen refunds as exact
+percentage slices anyway:
+
+```
+easy: refunds that are EXACT whole-percent slices: 15, arbitrary: 0
+hard: refunds that are EXACT whole-percent slices:  5, arbitrary: 9
+```
+
+Nine of fourteen are genuinely arbitrary, which is why the set still
+works as an adversarial test — and the detectors do not key on the
+artifact, so no reported number is invalidated. But **the hard set is
+less adversarial than it should be**: a rule that did key on the
+fingerprint would still score 5 of 14 on the set built to defeat it. The
+right construction is arbitrary amounts throughout.
+
+**A wrong claim about pandas, stated confidently.** When adding `tzdata`
+I said pandas bundles `pytz`, so tz handling "would probably have worked
+anyway". That is false for pandas 3.0, which dropped `pytz` — it is not
+installed in this environment. The dependency was genuinely required,
+not belt-and-braces. The claim was volunteered, not asked for, and was
+wrong.
+
+**Five stages of un-ticked checkboxes.** CLAUDE.md §14 requires updating
+the README status checkboxes as each stage completes. Stages 1 through 5
+all landed without it. It was caught only when stage 7 ticked its own
+box and the inconsistency became visible, then fixed in a catch-up
+commit (`c3998aa`). A rule followed four times out of five is a rule
+that needs a check, not more diligence.
+
+---
+
+## 8. Evaluation methodology
 
 ### Two labelled sets
 
@@ -842,7 +1390,7 @@ with a non-₹500 fee, 2 controls), 3 shortfalls (2 above the threshold,
 
 The rules scored **1.000 on every type** on the easy set. That left the
 agent layer no headroom: every outcome was neutral or a regression, and
-§11's gate would block any commit that moved a number. The floor was at
+CLAUDE.md §11's gate would block any commit that moved a number. The floor was at
 the ceiling.
 
 ### Why 1.000 on the easy set is a statement about the fixtures
@@ -886,7 +1434,7 @@ positive where no labels exist.
 
 ---
 
-## 7. Results
+## 9. Results
 
 Produced by `python evals/run_eval.py` and
 `python evals/run_eval.py --agent` at `beeb5a4`. The agent run reported
@@ -960,7 +1508,7 @@ fixed penalty. The agent changed **nothing** on the easy set: 23 routed,
 23 confirmed, 0 overridden.
 
 `settlement_shortfall` F1 is **unchanged at 0.222**. The agent declines
-to guess at the refund/shortfall boundary. §8 shows that is correct.
+to guess at the refund/shortfall boundary. §10 shows that is correct.
 
 **On both sets, in both modes: `missed entirely: none` and
 `flagged but clean: none`.** Every anomaly is detected and nothing clean
@@ -969,7 +1517,7 @@ matters given recall is the priority metric.
 
 ---
 
-## 8. Honest exception list
+## 10. Honest exception list
 
 Seven orders on the hard set carry the wrong label after the agent pass.
 They are unchanged from the rules-only run.
@@ -1022,7 +1570,7 @@ the largest shortfall.** They interleave:
 
 No threshold on this axis separates them. The best achievable is **3
 errors, not 0** — and reaching it would mean fitting the constant to the
-answer key, which §11 forbids and which would move the overfitting
+answer key, which CLAUDE.md §11 forbids and which would move the overfitting
 rather than remove it. The current 0.20 gives 7 errors; the theoretical
 optimum gives 3. Neither is a solution.
 
@@ -1054,16 +1602,16 @@ still being wrong. Documented in `tests/fixtures/hard/README.md`.
 
 ---
 
-## 9. Engineering practices
+## 11. Engineering practices
 
 `CLAUDE.md` defines fifteen rules. Four did concrete work.
 
-### Ask before committing (§3)
+### Ask before committing (CLAUDE.md §3)
 
 Every commit in this history was shown as a diff and approved before
 landing. This caught real problems rather than being ceremony:
 
-- The **`ord_00026` regression** (§5.5) surfaced at the diff stage, was
+- The **`ord_00026` regression** (§7.5) surfaced at the diff stage, was
   reported with the agent's own reasoning, and the fix was chosen by the
   user rather than by the implementer.
 - The **overpayment question** in stage 5 was put to the user before any
@@ -1072,7 +1620,7 @@ landing. This caught real problems rather than being ceremony:
   option that scored perfectly on the fixtures was explicitly presented
   as overfitting and rejected by the user.
 
-### The regression gate (§11)
+### The regression gate (CLAUDE.md §11)
 
 *"Before any commit that touches detection logic, run the eval. If
 recall on any existing anomaly type drops, do not commit."*
@@ -1084,7 +1632,7 @@ the eventual commit held easy at 1.000 while improving hard. **Without
 the gate, a change that improved the headline hard number by 0.077 would
 have silently damaged the baseline.**
 
-### One commit per logical change (§3)
+### One commit per logical change (CLAUDE.md §3)
 
 Applied even when inconvenient:
 
@@ -1096,12 +1644,12 @@ Applied even when inconvenient:
   correct**, no commit was manufactured — the rows had landed with stage
   6, the eval was re-run to confirm, and the tag was applied directly.
 
-### Never invent data (§6) and verify before claiming done (§12)
+### Never invent data (CLAUDE.md §6) and verify before claiming done (CLAUDE.md §12)
 
 - The data model was written by reading actual header rows and measuring
   actual identities — hence "verified across 127/127" rather than
   "should hold".
-- The `tzdata` failure (§5.1) was found *because* §12 required running
+- The `tzdata` failure (§7.1) was found *because* CLAUDE.md §12 required running
   the thing rather than asserting it worked.
 - The hard fixture generator's reproducibility was proven by running it
   from two directories and checking `git status`, not by reasoning about
@@ -1118,7 +1666,7 @@ until prompted.
 
 ---
 
-## 10. What's next
+## 12. What's next
 
 ### Column mapping with LLM-assisted schema inference
 
@@ -1137,13 +1685,13 @@ deterministic loaders then run against the mapping. The LLM never sees a
 value, only headers and a sample, and never participates in a
 reconciliation run.
 
-Open question this must answer first: UNKNOWN #3 from §3 — nullability
+Open question this must answer first: UNKNOWN #3 from §4 — nullability
 in real exports determines whether an unmapped column is a hard error or
 a bucketed row.
 
 ### A refund ledger
 
-The single highest-value addition, for the reasons in §8. It collapses
+The single highest-value addition, for the reasons in §10. It collapses
 the largest remaining error class from inference to a join. It also
 retires `REFUND_THRESHOLD_PCT` and `REFUND_NEAR_THRESHOLD_PCT` entirely,
 removing two of the three heuristic constants that `config.py` currently
@@ -1166,7 +1714,7 @@ Two directions, in order of robustness:
    a per-merchant, per-method fee table keyed off `payments.method` at
    least makes the assumption explicit and auditable rather than global.
 
-Answering UNKNOWN #1 from §3 — whether 2% + 18% is contractual or
+Answering UNKNOWN #1 from §4 — whether 2% + 18% is contractual or
 per-method — is a precondition for either.
 
 ---
