@@ -12,6 +12,44 @@ Built for the Razorpay Buildathon — Track 04.
 
 ---
 
+## Where to look
+
+| Looking for | Path |
+|---|---|
+| Entry point — runs the whole pipeline | [`src/main.py`](src/main.py) |
+| Reading the four CSV ledgers | [`src/loaders/`](src/loaders/) |
+| The join — orders → payments → fees → settlements | [`src/matching/engine.py`](src/matching/engine.py) |
+| The five detectors, one file each | [`src/detectors/`](src/detectors/) |
+| The LLM layer | [`src/agent/`](src/agent/) |
+| The only file importing a provider SDK | [`src/agent/client.py`](src/agent/client.py) |
+| Report generation — CSV + console | [`src/report.py`](src/report.py) |
+| Read-only dashboard | [`src/dashboard/app.py`](src/dashboard/app.py) |
+| Accuracy harness — the only file that may read the answer key | [`evals/run_eval.py`](evals/run_eval.py) |
+| Tolerance, timezone and the three tuned constants | [`config.py`](config.py) |
+| Fixture set — 130 orders | [`tests/fixtures/`](tests/fixtures/) |
+| The answer key | [`tests/fixtures/ground_truth.csv`](tests/fixtures/ground_truth.csv) |
+| Adversarial set — 40 orders built to break the rules | [`tests/fixtures/hard/`](tests/fixtures/hard/) |
+| Generator for the adversarial set | [`tests/gen_hard.py`](tests/gen_hard.py) |
+| 193 tests | [`tests/`](tests/) |
+
+| Question | Document |
+|---|---|
+| How it works, what broke, and every number | [`docs/PROJECT_REPORT.md`](docs/PROJECT_REPORT.md) |
+| The same thing with no programming background assumed | [`docs/UNDERSTANDING.md`](docs/UNDERSTANDING.md) |
+| Every column, unit, join key and the settlement formula | [`docs/data-model.md`](docs/data-model.md) |
+| The rules this project was built under | [`CLAUDE.md`](CLAUDE.md) |
+| Does it meet the Track 04 bar? | [below](#meeting-the-track-04-bar) |
+
+Clone to report, no API key and no network needed:
+
+```bash
+pip install -r requirements.txt
+python -m src.main --data tests/fixtures --out reports/   # writes reports/reconciliation.csv
+python evals/run_eval.py                                  # accuracy on both fixture sets
+```
+
+---
+
 ## The problem
 
 A merchant's money passes through four separate records before it
