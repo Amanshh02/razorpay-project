@@ -89,7 +89,7 @@ Stated here rather than left for a reader to discover.
    of 1.000 is the figure most likely to be skimmed and the one that
    means least — it is a statement about the fixtures (§8). The hard
    set's 0.615 / 0.731 is the honest measure.
-5. **130 orders is not a throughput test.** 688 orders/second is real
+5. **130 orders is not a throughput test.** 688–958 orders/second is real
    and reproducible; it is also measured on a batch that fits in memory
    trivially. Nothing here demonstrates behaviour at 100k orders.
 

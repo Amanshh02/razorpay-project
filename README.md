@@ -54,9 +54,9 @@ Every figure below is a whole-batch result produced by a command in
 | Orders in the batch | **130** | 40 |
 | Ledger rows across all four files | **511** | 154 |
 | Processed per pass | all of them | all of them |
-| Median wall clock, 7 runs | **0.189 s** | 0.159 s |
-| Orders / second | 688 | 251 |
-| Ledger rows / second | 2,704 | 968 |
+| Median wall clock | **0.136 – 0.189 s** | 0.134 – 0.159 s |
+| Orders / second | 688 – 958 | 251 – 298 |
+| Ledger rows / second | 2,704 – 3,765 | 968 – 1,148 |
 
 The brief asks for a 50+ record batch. The primary batch is **130
 orders / 511 ledger rows**, processed in a single pass — no sampling,
@@ -65,8 +65,15 @@ labelled batch of 40 orders, added deliberately (see below); it is an
 addition to the 130, not the batch itself.
 
 Cold start from the shell, including interpreter startup and the pandas
-import, is a median **2.15 s** over 3 runs. The 0.189 s figure is the
-pipeline itself, measured in-process.
+import, is **1.27 – 2.15 s**. The figures above are the pipeline itself,
+measured in-process.
+
+**These are ranges because wall-clock timing varies with machine load.**
+Each bound is the median of a run of 7 (3 for cold start) on the same
+machine; two such runs produced the two ends. A single figure would
+imply a precision the measurement does not have. Accuracy figures carry
+no such range — the pipeline is deterministic and the agent pass is
+served from cache, so those reproduce exactly.
 
 **Nothing is silently dropped.** The matcher asserts a row conservation
 invariant *per ledger* before it returns anything:
