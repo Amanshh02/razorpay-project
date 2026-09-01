@@ -92,6 +92,37 @@ Stated here rather than left for a reader to discover.
 5. **130 orders is not a throughput test.** 688–958 orders/second is real
    and reproducible; it is also measured on a batch that fits in memory
    trivially. Nothing here demonstrates behaviour at 100k orders.
+6. **The adversarial set partly reproduces the artifact it was built to
+   defeat.** Stage 4 rejected keying refund detection on "is the
+   shortfall an exact whole-percent slice of the payment", because that
+   is a fingerprint of the fixture generator rather than a property of
+   refunds. `tests/gen_hard.py` was then written with **5 of its 14
+   refunds constructed as exact percentage slices**:
+
+   ```
+   easy: 15 exact whole-percent, 0 arbitrary
+   hard:  5 exact whole-percent, 9 arbitrary
+     ord_h0020 (12%)  ord_h0021 (15%)  ord_h0022 (8%)
+     ord_h0038 (30%)  ord_h0039 (50%)
+   ```
+
+   Nine of fourteen are genuinely arbitrary, which is why the set still
+   functions as an adversarial test. **No reported figure depends on the
+   artifact** — no detector or agent decision keys on the whole-percent
+   property, verified by search, so nothing is inflated by its presence.
+   But the set is **less adversarial than intended**: a rule keyed on
+   the fingerprint would still score 5 of 14 on the set built to defeat
+   it, and three of those five (`ord_h0020`, `ord_h0021`, `ord_h0022`)
+   are among the seven orders in the exception list — precisely the
+   sub-threshold refunds the shipped rule gets wrong.
+
+   **Recorded rather than fixed, as a deliberate scope decision.**
+   Regenerating those five as arbitrary amounts would change their
+   ratios and therefore every hard-set number in §9, §10 and the README,
+   requiring the full measurement chain to be re-run and re-documented
+   before the submission deadline. The honest move at this point is to
+   state the weakness precisely rather than to change the data and the
+   reported results at the same time. See §7.8.
 
 ---
 
