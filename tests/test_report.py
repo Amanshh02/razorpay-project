@@ -268,3 +268,59 @@ def test_run_rejects_a_directory_missing_a_ledger(tmp_path):
     (tmp_path / "orders.csv").write_text("order_id\n", encoding="utf-8")
     with pytest.raises(FileNotFoundError, match="payments.csv"):
         run(tmp_path, tmp_path / "out")
+
+
+# --------------------------------------------------------------------
+# Stage 10: the progress callback
+# --------------------------------------------------------------------
+
+def test_on_step_reports_only_work_that_happened(tmp_path):
+    """Every event must be backed by a real result, not a schedule."""
+    events = []
+    report, summary, _ = run(FIXTURES, tmp_path, on_step=events.append)
+
+    loads = [e for e in events if e["phase"] == "load"]
+    assert [e["ledger"] for e in loads] == [
+        "orders.csv", "payments.csv", "fees.csv", "settlements.csv"
+    ]
+    assert [e["rows"] for e in loads] == [130, 127, 127, 127]
+
+    match = next(e for e in events if e["phase"] == "match")
+    assert (match["orders"], match["reconciled"], match["unreconciled"]) == (130, 127, 3)
+
+    detects = {e["anomaly_type"]: e["found"] for e in events if e["phase"] == "detect"}
+    assert detects == {
+        "chargeback": 5, "refund_not_reflected": 15, "settlement_shortfall": 8,
+        "settlement_excess": 0, "payment_not_received": 3,
+    }
+    # The detector counts must add up to the report, or a step lied.
+    assert sum(detects.values()) == summary["flagged"] == len(report)
+
+    final = next(e for e in events if e["phase"] == "report")
+    assert final["flagged"] == summary["flagged"]
+    assert final["exposure_paise"] == summary["exposure_paise"]
+
+
+def test_no_classify_event_without_the_agent(tmp_path):
+    events = []
+    run(FIXTURES, tmp_path, on_step=events.append)
+    assert not [e for e in events if e["phase"] == "classify"]
+
+
+def test_pipeline_output_is_identical_with_and_without_the_callback(tmp_path):
+    quiet, s1, _ = run(FIXTURES, tmp_path / "a")
+    loud, s2, _ = run(FIXTURES, tmp_path / "b", on_step=lambda e: None)
+    pd.testing.assert_frame_equal(quiet, loud)
+    assert s1 == s2
+
+
+def test_payment_amount_is_carried_into_the_report(tmp_path):
+    """Needed by the dashboard histogram; 0 where no payment exists."""
+    report, _, _ = run(FIXTURES, tmp_path)
+    assert "payment_amount_paise" in report.columns
+
+    indexed = report.set_index("order_id")
+    # A reconciled order carries its real captured payment.
+    assert int(indexed.loc["ord_00001", "payment_amount_paise"]) == 2311396
+    # An order whose payment never arrived carries 0, not a guess.
+    assert int(indexed.loc["ord_00006", "payment_amount_paise"]) == 0

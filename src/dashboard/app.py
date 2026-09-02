@@ -23,6 +23,7 @@ ROOT = Path(__file__).resolve().parent.parent.parent
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
+from src.dashboard import charts  # noqa: E402
 from src.dashboard.data import (  # noqa: E402
     CHARGEBACK,
     DEFAULT_REPORT_DIR,
@@ -33,9 +34,17 @@ from src.dashboard.data import (  # noqa: E402
     find_report,
     format_indian,
     load_report,
+    shortfall_ratios,
     summarise,
     to_rupees,
 )
+
+#: The refund/shortfall threshold, shown on the histogram. Read from
+#: config rather than repeated, so the line cannot drift from the rule.
+try:
+    from config import REFUND_THRESHOLD_PCT
+except ImportError:  # pragma: no cover - config is always present
+    REFUND_THRESHOLD_PCT = 0.20
 
 BACKGROUND = "#0A0A0A"
 NEON = "#39FF14"
@@ -116,13 +125,63 @@ def empty_state(message):
     st.stop()
 
 
+def run_pipeline_live(data_dir):
+    """Run the real pipeline, narrating each completed step.
+
+    The engine is imported **here**, inside the handler, not at module
+    level. Loading this page executes no pipeline code; only pressing
+    the button does. See ``src/dashboard/runner.py``.
+    """
+    from src.dashboard.runner import format_step, run_with_progress
+
+    with st.status("Running reconciliation…", expanded=True) as status:
+        lines = []
+
+        def on_step(event):
+            # Called after each step finishes, with counts from the
+            # result. Nothing is announced before it has happened.
+            lines.append(format_step(event))
+            status.write(lines[-1])
+
+        try:
+            _, summary, csv_path = run_with_progress(
+                data_dir, DEFAULT_REPORT_DIR, on_step=on_step
+            )
+        except FileNotFoundError as exc:
+            status.update(label="Could not run", state="error")
+            st.error(str(exc))
+            return None
+
+        status.update(
+            label=f"Done — {summary['flagged']} flags, "
+            f"{format_indian(summary['exposure_paise'])} at risk",
+            state="complete",
+        )
+        return csv_path
+
+
+# --- opt-in run mode -------------------------------------------------
+with st.sidebar:
+    st.markdown('<div class="fc-title">Run</div>', unsafe_allow_html=True)
+    st.caption(
+        "By default this dashboard only reads the report CSV and cannot "
+        "recompute anything. Running the pipeline is an explicit action."
+    )
+    data_dir = st.text_input("Ledger directory", value="tests/fixtures")
+    if st.button("Run reconciliation", width="stretch"):
+        if run_pipeline_live(data_dir):
+            st.cache_data.clear()
+    st.markdown("---")
+
+
 try:
     report_path = find_report()
     frame = load_report(report_path)
 except ReportNotFound:
     empty_state(
         f"Nothing to read in `{DEFAULT_REPORT_DIR}`. The pipeline has not "
-        f"been run, or its output was written somewhere else."
+        f"been run, or its output was written somewhere else. You can run "
+        f"it from the sidebar."
     )
 except ReportMalformed as exc:
     empty_state(str(exc))
@@ -198,6 +257,48 @@ if groups:
                     f'</div>',
                     unsafe_allow_html=True,
                 )
+
+st.markdown("")
+
+
+# --- charts ----------------------------------------------------------
+if groups:
+    st.plotly_chart(
+        charts.exposure_by_type(groups, format_indian),
+        width="stretch",
+        config={"displayModeBar": False},
+    )
+
+    ratios, ratio_labels = shortfall_ratios(frame)
+    left, right = st.columns(2)
+    with left:
+        if ratios:
+            st.plotly_chart(
+                charts.shortfall_ratio_histogram(
+                    ratios, ratio_labels, REFUND_THRESHOLD_PCT
+                ),
+                width="stretch",
+                config={"displayModeBar": False},
+            )
+            st.caption(
+                f"Each bar is a count of flagged orders. The dashed line is "
+                f"the {REFUND_THRESHOLD_PCT:.0%} threshold separating "
+                f"'refund' from 'shortfall'. Bars sit on both sides of it "
+                f"because the two are not separable by size alone — that is "
+                f"the judgement call, drawn."
+            )
+        else:
+            st.info("No flagged order has a captured payment to compare against.")
+    with right:
+        st.plotly_chart(
+            charts.count_vs_impact(groups, format_indian),
+            width="stretch",
+            config={"displayModeBar": False},
+        )
+        st.caption(
+            "Up and to the left is the worst place to be: few orders, large "
+            "money. Down and to the right is many small flags."
+        )
 
 st.markdown("")
 

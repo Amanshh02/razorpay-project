@@ -30,12 +30,32 @@ from .report import build_report, render_console, summarise, write_csv
 LEDGERS = ("orders.csv", "payments.csv", "fees.csv", "settlements.csv")
 
 
-def run(data_dir, out_dir, *, use_agent=False, use_cache=True):
+#: Loader per ledger, in the order the pipeline reads them.
+_LOADERS = (
+    ("orders.csv", load_orders),
+    ("payments.csv", load_payments),
+    ("fees.csv", load_fees),
+    ("settlements.csv", load_settlements),
+)
+
+
+def run(data_dir, out_dir, *, use_agent=False, use_cache=True, on_step=None):
     """Load, match, detect, optionally classify, then report.
+
+    Args:
+        on_step: Optional callback invoked with a dict after each real
+            step completes — ``{"phase": ..., ...}``. It reports work
+            already done, never work about to start, so a caller cannot
+            display a step that did not happen. The pipeline is defined
+            here once; observers watch it rather than restating it.
 
     Returns:
         ``(report, summary, csv_path)``.
     """
+    def emit(phase, **detail):
+        if on_step is not None:
+            on_step({"phase": phase, **detail})
+
     data_dir = Path(data_dir)
     missing = [name for name in LEDGERS if not (data_dir / name).exists()]
     if missing:
@@ -44,23 +64,38 @@ def run(data_dir, out_dir, *, use_agent=False, use_cache=True):
             f"Expected all four ledgers: {', '.join(LEDGERS)}."
         )
 
-    orders = load_orders(data_dir / "orders.csv")
+    frames = {}
+    for name, loader in _LOADERS:
+        frames[name] = loader(data_dir / name)
+        emit("load", ledger=name, rows=len(frames[name]))
+
+    orders = frames["orders.csv"]
     matched = match_ledgers(
         orders,
-        load_payments(data_dir / "payments.csv"),
-        load_fees(data_dir / "fees.csv"),
-        load_settlements(data_dir / "settlements.csv"),
+        frames["payments.csv"],
+        frames["fees.csv"],
+        frames["settlements.csv"],
     )
-    findings = pd.concat(
-        [
-            detect_chargebacks(matched.reconciled),
-            detect_refunds(matched.reconciled),
-            detect_settlement_shortfalls(matched.reconciled),
-            detect_overpayments(matched.reconciled),
-            detect_missing_payments(matched.unreconciled, orders),
-        ],
-        ignore_index=True,
+    emit(
+        "match",
+        orders=len(orders),
+        reconciled=len(matched.reconciled),
+        unreconciled=len(matched.unreconciled),
     )
+
+    detectors = (
+        ("chargeback", lambda: detect_chargebacks(matched.reconciled)),
+        ("refund_not_reflected", lambda: detect_refunds(matched.reconciled)),
+        ("settlement_shortfall", lambda: detect_settlement_shortfalls(matched.reconciled)),
+        ("settlement_excess", lambda: detect_overpayments(matched.reconciled)),
+        ("payment_not_received", lambda: detect_missing_payments(matched.unreconciled, orders)),
+    )
+    parts = []
+    for anomaly_type, detect in detectors:
+        found = detect()
+        parts.append(found)
+        emit("detect", anomaly_type=anomaly_type, found=len(found))
+    findings = pd.concat(parts, ignore_index=True)
 
     decisions = None
     if use_agent:
@@ -73,10 +108,22 @@ def run(data_dir, out_dir, *, use_agent=False, use_cache=True):
             build_client(),
             ResponseCache(enabled=use_cache),
         )
+        emit(
+            "classify",
+            routed=len(decisions),
+            overridden=sum(1 for d in decisions if d["action"] == "overridden"),
+        )
 
-    report = build_report(findings, decisions)
+    report = build_report(findings, decisions, matched.reconciled)
     summary = summarise(report, matched, orders)
     csv_path = write_csv(report, Path(out_dir) / "reconciliation.csv")
+    emit(
+        "report",
+        flagged=summary["flagged"],
+        exposure_paise=summary["exposure_paise"],
+        surplus_paise=summary["surplus_paise"],
+        csv_path=str(csv_path),
+    )
     return report, summary, csv_path
 
 

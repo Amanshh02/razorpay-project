@@ -163,6 +163,29 @@ def apply_filters(frame, types=None, min_delta_paise=0):
     return filtered.reset_index(drop=True)
 
 
+def shortfall_ratios(frame):
+    """Shortfall as a fraction of the payment captured, per flagged order.
+
+    This is the quantity the refund/shortfall threshold is compared
+    against, so plotting it against that threshold shows whether the
+    line separates two groups or cuts through one.
+
+    Orders with no captured payment are **excluded**, not zero-filled:
+    a payment that never reached the gateway has no denominator, and
+    inventing one would put a fabricated point on the chart.
+    """
+    if frame.empty or "payment_amount_paise" not in frame.columns:
+        return [], []
+    ratios, labels = [], []
+    for row in frame.itertuples():
+        payment = int(getattr(row, "payment_amount_paise", 0) or 0)
+        if payment <= 0:
+            continue
+        ratios.append(int(row.impact_paise) / payment)
+        labels.append(row.anomaly_type)
+    return ratios, labels
+
+
 def to_rupees(paise):
     """Paise to rupees as a float. Display only - never fed back in."""
     return paise / 100

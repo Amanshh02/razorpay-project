@@ -11,3 +11,6 @@ anthropic
 
 # Dashboard. Only src/dashboard/ imports this.
 streamlit
+
+# Dashboard charts. Only src/dashboard/charts.py imports this.
+plotly

@@ -26,6 +26,7 @@ REPORT_COLUMNS = (
     "order_id",
     "anomaly_type",
     "confidence",
+    "payment_amount_paise",
     "expected_amount_paise",
     "actual_amount_paise",
     "delta_paise",
@@ -40,7 +41,7 @@ UNDERPAID = "underpaid"
 OVERPAID = "overpaid"
 
 
-def build_report(findings, decisions=None):
+def build_report(findings, decisions=None, reconciled=None):
     """Order findings for a human: worst type first, worst row first.
 
     Args:
@@ -49,6 +50,10 @@ def build_report(findings, decisions=None):
         decisions: The agent's decision list, when it ran. Supplies the
             ``agent_explanation`` column - the sentence a finance person
             actually acts on.
+        reconciled: The matched frame, used only to carry each order's
+            captured payment through to the CSV. Absent for an order
+            whose payment never reached the gateway, which is recorded
+            as 0 rather than guessed at.
 
     Returns:
         A DataFrame with :data:`REPORT_COLUMNS`.
@@ -57,6 +62,17 @@ def build_report(findings, decisions=None):
         return pd.DataFrame({column: [] for column in REPORT_COLUMNS})
 
     report = findings.copy()
+    # Carried through so a reader can see the size of the sale a gap
+    # relates to, and so the dashboard can plot shortfall as a fraction
+    # of it. Zero where no payment ever reached the gateway.
+    payments = {}
+    if reconciled is not None and len(reconciled):
+        payments = dict(
+            zip(reconciled["order_id"], reconciled["payment_amount_paise"])
+        )
+    report["payment_amount_paise"] = [
+        int(payments.get(order_id, 0)) for order_id in report["order_id"]
+    ]
     report["impact_paise"] = report["delta_paise"].abs()
     report["direction"] = report["delta_paise"].apply(
         lambda delta: OVERPAID if delta > 0 else UNDERPAID

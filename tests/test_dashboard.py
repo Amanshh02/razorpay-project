@@ -14,6 +14,7 @@ import pytest
 from src.dashboard.data import (
     OVERPAID,
     UNDERPAID,
+    shortfall_ratios,
     ReportMalformed,
     ReportNotFound,
     apply_filters,
@@ -39,6 +40,7 @@ def report_csv(tmp_path):
             "settlement_shortfall", "settlement_excess",
         ],
         "confidence": ["medium", "high", "low", "high"],
+        "payment_amount_paise": [5127000, 923000, 305000, 716000],
         "expected_amount_paise": [5000000, 900000, 300000, 700000],
         "actual_amount_paise": [1000000, -50000, 295000, 725000],
         "delta_paise": [-4000000, -950000, -5000, 25000],
@@ -68,15 +70,78 @@ def _imported_modules(path):
     return names
 
 
+#: Stage 10 added an opt-in "Run reconciliation" button, so the
+#: dashboard can now run the pipeline. The isolation boundary moved
+#: rather than disappearing, and these tests encode where it sits now:
+#:
+#:   data.py    — no engine imports at all, as in stage 9
+#:   charts.py  — no engine imports at all
+#:   app.py     — no engine imports AT MODULE LEVEL; the runner is
+#:                imported inside the button handler, so loading the
+#:                page executes no pipeline code
+#:   runner.py  — the single documented bridge
+ENGINE = ("matching", "detectors", "agent", "main", "report")
+PURE_MODULES = ("data.py", "charts.py")
+BRIDGE = "runner.py"
+
+
+def _module_level_imports(path):
+    """Imports executed on import of the module, ignoring nested ones."""
+    tree = ast.parse(path.read_text(encoding="utf-8"))
+    names = []
+    for node in tree.body:  # top level only, not ast.walk
+        if isinstance(node, ast.Import):
+            names += [alias.name for alias in node.names]
+        elif isinstance(node, ast.ImportFrom):
+            names.append(node.module or "")
+    return names
+
+
 @pytest.mark.parametrize("forbidden", ["matching", "detectors", "agent"])
-def test_dashboard_imports_nothing_from_the_engine(forbidden):
-    """A docstring saying so is not proof; the AST is."""
-    offenders = []
+@pytest.mark.parametrize("module", PURE_MODULES)
+def test_pure_modules_import_nothing_from_the_engine(module, forbidden):
+    """The read-only path is exactly as isolated as it was in stage 9."""
+    offenders = [
+        m for m in _imported_modules(DASHBOARD / module)
+        if forbidden in m.split(".")
+    ]
+    assert offenders == [], f"{module} -> {offenders}"
+
+
+@pytest.mark.parametrize("forbidden", ENGINE)
+def test_app_does_not_import_the_engine_at_module_level(forbidden):
+    """Loading the page must execute no pipeline code.
+
+    A lazy import inside the button handler is permitted and is how the
+    run mode works; a top-level one would mean the engine runs for every
+    reader, including those who never press the button.
+    """
+    offenders = [
+        m for m in _module_level_imports(DASHBOARD / "app.py")
+        if forbidden in m.split(".")
+    ]
+    assert offenders == [], f"app.py imports {offenders} at module level"
+
+
+def test_the_runner_is_the_only_bridge_to_the_engine():
+    """Exactly one dashboard file may reach the pipeline."""
+    bridges = []
     for path in sorted(DASHBOARD.glob("*.py")):
         for module in _imported_modules(path):
-            if forbidden in module.split("."):
-                offenders.append(f"{path.name} -> {module}")
-    assert offenders == [], offenders
+            if any(part in ENGINE for part in module.split(".")):
+                bridges.append(path.name)
+    assert set(bridges) == {BRIDGE}, f"expected only {BRIDGE}, got {sorted(set(bridges))}"
+
+
+def test_the_runner_does_not_restate_the_pipeline():
+    """It observes src.main.run; it must not re-implement the sequence."""
+    imported = _imported_modules(DASHBOARD / BRIDGE)
+    assert "src.main" in imported
+    for engine_module in ("src.matching", "src.detectors", "src.loaders"):
+        assert engine_module not in imported, (
+            f"{BRIDGE} reaches past src.main into {engine_module}, which "
+            f"would mean two definitions of the pipeline sequence"
+        )
 
 
 def _docstring_nodes(tree):
@@ -294,3 +359,84 @@ def test_reads_a_report_produced_by_the_pipeline(tmp_path):
     assert totals["flagged"] == 31
     assert totals["exposure_paise"] == 48191930
     assert format_indian(totals["exposure_paise"]) == "Rs 4,81,919.30"
+
+
+# --------------------------------------------------------------------
+# Stage 10: live progress and charts
+# --------------------------------------------------------------------
+
+def test_shortfall_ratios_exclude_orders_with_no_payment(report_csv):
+    """A payment that never arrived has no denominator to divide by."""
+    frame = load_report(report_csv)
+    frame.loc[frame["order_id"] == "ord_2", "payment_amount_paise"] = 0
+    ratios, labels = shortfall_ratios(frame)
+
+    assert len(ratios) == len(labels)
+    assert "ord_2" not in labels          # excluded, not zero-filled
+    assert all(r > 0 for r in ratios)
+
+
+def test_shortfall_ratio_is_impact_over_payment(report_csv):
+    frame = load_report(report_csv)
+    ratios, _ = shortfall_ratios(frame)
+    row = frame.iloc[0]
+    expected = int(row["impact_paise"]) / int(row["payment_amount_paise"])
+    assert ratios[0] == pytest.approx(expected)
+
+
+def test_shortfall_ratios_handle_an_empty_frame():
+    assert shortfall_ratios(pd.DataFrame()) == ([], [])
+
+
+def test_every_chart_builds_from_a_real_report(tmp_path):
+    """Figures are constructed from pipeline output, not sample data."""
+    from src.dashboard import charts
+    from src.main import run
+
+    run(FIXTURES, tmp_path)
+    frame = load_report(find_report(tmp_path))
+    groups = by_type(frame)
+    ratios, labels = shortfall_ratios(frame)
+
+    bar = charts.exposure_by_type(groups, format_indian)
+    hist = charts.shortfall_ratio_histogram(ratios, labels, 0.20)
+    scatter = charts.count_vs_impact(groups, format_indian)
+
+    for fig in (bar, hist, scatter):
+        assert fig.layout.paper_bgcolor == charts.BACKGROUND
+        assert fig.data
+
+
+def test_chargebacks_are_coloured_differently_from_other_types(tmp_path):
+    from src.dashboard import charts
+    from src.main import run
+
+    run(FIXTURES, tmp_path)
+    groups = by_type(load_report(find_report(tmp_path)))
+    bar = charts.exposure_by_type(groups, format_indian)
+
+    colours = dict(zip(
+        [g["anomaly_type"] for g in reversed(groups)],
+        bar.data[0].marker.color,
+    ))
+    assert colours["chargeback"] == charts.RED
+    assert all(c == charts.ORANGE for k, c in colours.items() if k != "chargeback")
+
+
+def test_histogram_marks_the_threshold(tmp_path):
+    from src.dashboard import charts
+    from src.main import run
+
+    run(FIXTURES, tmp_path)
+    frame = load_report(find_report(tmp_path))
+    ratios, labels = shortfall_ratios(frame)
+    fig = charts.shortfall_ratio_histogram(ratios, labels, 0.20)
+
+    lines = [s for s in fig.layout.shapes if s.type == "line"]
+    assert lines, "threshold line missing"
+    assert lines[0].x0 == pytest.approx(0.20)
+
+
+def test_charts_module_does_not_import_streamlit():
+    """Figures must be buildable in a test with no server."""
+    assert "streamlit" not in _imported_modules(DASHBOARD / "charts.py")
