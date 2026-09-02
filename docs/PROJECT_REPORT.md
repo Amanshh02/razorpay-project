@@ -1,8 +1,7 @@
 # AI Finance Controller — Technical Report
 
-**Scope:** first commit (`1e77549`) to `72c14b6`, **32 commits** on
-`main`, two tags. **193 tests.** 2,440 lines under `src/`, 2,154 under
-`tests/`.
+**Scope:** first commit (`1e77549`) to `5ee7329`, **38 commits** on
+`main`, two tags. **214 tests.**
 
 Every number in this report was produced by a command run against the
 repository, not quoted from memory. Where a figure comes from a specific
@@ -46,7 +45,7 @@ Figures were re-measured at `1a33286`.
 | Brief phrase | Where | Evidence |
 |---|---|---|
 | "verification capacity … is the bottleneck" | §2; README "Meeting the Track 04 bar" | The deterministic layer is the verifier and is deliberately not an LLM. The eval harness makes the verification itself checkable. |
-| "not generation speed" | §2 "How 'no LLM touches a number' is enforced structurally" | Four structural mechanisms, each tested: output schema carries no numeric field; `test_no_amount_is_ever_modified`; SDK confined to one file; dashboard cannot import the engine. |
+| "not generation speed" | §2 "How 'no LLM touches a number' is enforced structurally" | Four structural mechanisms, each tested: output schema carries no numeric field; `test_no_amount_is_ever_modified`; SDK confined to one file; the dashboard imports no engine code at module level (§5, stage 10). |
 | "still done by hand" | §1 | Rs 481,919.30 exposure across 130 orders, 23.8% of orders carrying a discrepancy. |
 
 ### Example direction
@@ -231,10 +230,13 @@ Not by convention. Four mechanisms, each tested:
 3. **The provider SDK is confined to one file.** Two tests assert the
    string `anthropic` appears nowhere in `src/` except
    `src/agent/client.py`.
-4. **The dashboard cannot recompute.** `tests/test_dashboard.py` parses
-   the AST of every file in `src/dashboard/` and asserts no import of
-   `matching`, `detectors`, or `agent`. A viewer that can recompute is a
-   viewer that can disagree with the report it displays.
+4. **The dashboard cannot recompute unless explicitly asked to.**
+   Through stage 9 this was absolute: `tests/test_dashboard.py` parsed
+   the AST of every file in `src/dashboard/` and asserted no import of
+   `matching`, `detectors` or `agent`. Stage 10 added an opt-in "Run
+   reconciliation" button, so the claim is now **conditional** — see
+   §5, stage 10, for what replaced it and why the trade was made.
+   Loading the page still executes no pipeline code.
 
 ### Money handling
 
@@ -647,6 +649,60 @@ in the log; Streamlit's own `AppTest` harness executed the script with
 **0 exceptions**, 31 rows, correct columns, correct default sort. The
 no-report state was verified by moving the CSV away and re-running: 0
 exceptions, 0 dataframes, the command shown.
+
+The absolute isolation described here held until stage 10, which
+deliberately relaxed it. See below.
+
+### Stage 10 — live progress and charts (`5ee7329`, 21 new tests)
+
+Two additions, one of which changed an architectural guarantee.
+
+**Live progress.** `src.main.run` gained an `on_step` callback invoked
+after each completed step with counts taken from the result. The
+dashboard narrates those; it does not restate the pipeline. A test
+asserts the per-detector counts sum to the report total, so a
+fabricated step fails, and another asserts output is identical with and
+without a callback. On the 130-order set the run emits 11 events —
+four loads, one match, five detectors, one report — including
+`settlement excess — 0 found`, because a step that ran and found
+nothing is still work that happened.
+
+**Charts.** Three plotly figures: exposure by anomaly type
+(chargebacks red, others orange), a histogram of shortfall-to-payment
+ratios with the refund threshold drawn on it, and a count-against-impact
+scatter. The histogram is the substantive one — bars fall on **both**
+sides of the threshold line, which is §6.6's overlap made visible
+rather than argued.
+
+**The isolation guarantee weakened, deliberately.** Stage 9's claim was
+absolute: the dashboard could not recompute, full stop. Stage 10's is
+"cannot recompute unless the button is pressed". That is strictly
+weaker, and it was traded for the ability to demonstrate the pipeline
+live rather than requiring a terminal.
+
+The boundary moved rather than dissolving, and the stage 9 tests were
+rewritten to encode where it now sits rather than deleted:
+
+| Module | Constraint | How it is checked |
+|---|---|---|
+| `data.py`, `charts.py` | no engine import at all | `ast.walk` over all imports |
+| `app.py` | no engine import **at module level** | `tree.body` only, so a lazy import inside the handler passes and a top-level one fails |
+| `runner.py` | the single bridge | asserted to be the only file importing the engine, and to reach `src.main` without reaching past it into `matching`, `detectors` or `loaders` |
+
+Measured at this commit: `app.py` imports the runner at line 135,
+**inside** the button handler — so loading the page executes no pipeline
+code, and a reader who never presses the button gets the stage 9
+guarantee unchanged.
+
+**One schema change.** The histogram needs shortfall ÷ payment and the
+report CSV carried no payment column, so `payment_amount_paise` was
+added, sourced from the reconciled frame. Orders whose payment never
+arrived record `0` and are **excluded** from the histogram rather than
+plotted at a fabricated ratio.
+
+*Verified:* `AppTest` executed the app with **0 exceptions**, 3 charts,
+31 table rows; pressing the button produced 11 real progress lines and 0
+exceptions. Eval unchanged — no detection logic was touched.
 
 ### Documentation and alignment (`1b7be6a` … `72c14b6`, 5 commits)
 

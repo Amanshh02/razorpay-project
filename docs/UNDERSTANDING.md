@@ -483,10 +483,18 @@ a problem (§9.3).
 **Stage 8 — the report.** Groups problems by type, sorts by rupee
 impact, leads with the total at risk.
 
-**Stage 9 — the dashboard.** A web page showing the results. It is
-deliberately **incapable** of recalculating anything — it can only
-display what the report already produced. Two different numbers for the
-same order, and nobody can tell which is real.
+**Stage 9 — the dashboard.** A web page showing the results. As built,
+it was deliberately **incapable** of recalculating anything — it could
+only display what the report already produced. Two different numbers for
+the same order, and nobody can tell which is real.
+
+**Stage 10 — live progress and charts.** Added three charts and a
+button that runs the pipeline from the page, narrating each step as it
+finishes. That button means the stage 9 rule is no longer absolute: the
+page cannot recalculate anything *unless you press it*. Simply opening
+the page still runs no calculation at all. It is a weaker promise than
+before, made knowingly, in exchange for being able to show the whole
+process running rather than only its output.
 
 ---
 

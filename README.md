@@ -422,13 +422,35 @@ Opens on <http://localhost:8501>. It reads the CSV the pipeline wrote to
 `reports/`, so **generate a report first** — with no CSV there it tells
 you which command to run rather than crashing or showing sample data.
 
-The dashboard is **read-only by construction**. It imports nothing from
-`src/matching`, `src/detectors` or `src/agent`, never runs
-reconciliation, and never opens `ground_truth.csv`; a test parses its
-AST to prove that rather than trusting the docstring. A viewer that can
-recompute is a viewer that can disagree with the report it is showing,
-and a finance team looking at two different numbers for one order has no
-way to tell which is real.
+**Read-only unless you opt in.** Loading the page imports nothing from
+the pipeline at module level, so viewing the dashboard executes no
+reconciliation code and never opens `ground_truth.csv`. A sidebar
+button, **Run reconciliation**, imports `src.main` lazily inside the
+handler and runs the real pipeline, narrating each completed step with
+the counts it produced.
+
+So the read-only guarantee holds for anyone who does not press the
+button — but it is now conditional, where before stage 10 it was
+absolute. That is a weaker claim and worth stating plainly. It was
+traded for the ability to demonstrate the pipeline live rather than
+requiring a terminal, and the boundary is pinned by tests rather than
+by intent:
+
+- `data.py` and `charts.py` admit **no** engine import at all.
+- `app.py` is checked at `tree.body` rather than `ast.walk`, so a
+  top-level engine import fails while the lazy one inside the button
+  handler passes.
+- `runner.py` is asserted to be the **only** bridge, and to reach
+  `src.main` without reaching past it into `matching`, `detectors` or
+  `loaders` — two definitions of the pipeline sequence would be worse
+  than none.
+
+The reasoning behind the original constraint still stands: a viewer that
+can recompute is a viewer that can disagree with the report it is
+showing, and a finance team looking at two different numbers for one
+order has no way to tell which is real. Pressing the button rewrites the
+CSV rather than displaying something different from it, so the two
+cannot diverge.
 
 What it shows:
 
