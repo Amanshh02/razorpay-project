@@ -1,7 +1,9 @@
 # AI Finance Controller — Technical Report
 
-**Scope:** first commit (`1e77549`) to `5ee7329`, **38 commits** on
-`main`, two tags. **214 tests.**
+**Scope:** first commit (`1e77549`) through stage 10, on `main`.
+Run `python -m pytest -q` for the current test count and
+`git rev-list --count HEAD` for the commit count — both move, and a
+number written here would rot rather than inform.
 
 Every number in this report was produced by a command run against the
 repository, not quoted from memory. Where a figure comes from a specific
@@ -1809,7 +1811,7 @@ per-method — is a precondition for either.
 ## Appendix: reproducing every number in this report
 
 ```bash
-python -m pytest -q                                      # 193 tests
+python -m pytest -q                                      # the full test suite
 python evals/run_eval.py                                 # rules-only, both sets
 python evals/run_eval.py --agent                         # + agent, both sets
 python -m src.main --data tests/fixtures --out reports/  # easy report

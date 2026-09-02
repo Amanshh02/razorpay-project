@@ -30,7 +30,7 @@ Built for the Razorpay Buildathon — Track 04.
 | The answer key | [`tests/fixtures/ground_truth.csv`](tests/fixtures/ground_truth.csv) |
 | Adversarial set — 40 orders built to break the rules | [`tests/fixtures/hard/`](tests/fixtures/hard/) |
 | Generator for the adversarial set | [`tests/gen_hard.py`](tests/gen_hard.py) |
-| 193 tests | [`tests/`](tests/) |
+| Tests | [`tests/`](tests/) |
 
 | Question | Document |
 |---|---|
@@ -262,7 +262,7 @@ python evals/run_eval.py            # accuracy, both sets, no API key needed
 python evals/run_eval.py --agent    # + the agent pass (needs a key)
 python -m src.main --data tests/fixtures --out reports/        # 130-order batch
 python -m src.main --data tests/fixtures/hard --out reports/   # 40-order batch
-python -m pytest -q                 # 193 tests
+python -m pytest -q                 # the full test suite
 ```
 
 Throughput figures come from timing `src.main.run()` in-process over 7

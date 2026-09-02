@@ -442,7 +442,8 @@ before the next began. Some vocabulary first:
   was saved.
 - A **test** is a small automated check that some specific behaviour is
   correct. They run in seconds and catch mistakes immediately. This
-  project has **193**.
+  project has a few hundred; `python -m pytest -q` prints the exact
+  number, which is more reliable than a figure written down here.
 - **Test data** (or **fixtures**) is fake but realistic data used for
   checking. Real merchant data is never used.
 
