@@ -487,11 +487,24 @@ Two labelled sets, scored separately by `evals/run_eval.py`:
 | v0.2-hard | hard | 0.950 | 0.720 | **1.000** | 0.222 | 1.000 | 1.000 | + LLM classification |
 | v0.3 | easy | 0.977 | 1.000 | 1.000 | 1.000 | 1.000 | n/a | + dashboard; detection unchanged |
 | v0.3-hard | hard | 0.950 | 0.720 | 1.000 | 0.222 | 1.000 | 1.000 | + dashboard; detection unchanged |
+| v0.4 | easy | 0.977 | 1.000 | 1.000 | 1.000 | 1.000 | n/a | + live progress and charts; detection unchanged |
+| v0.4-hard | hard | 0.950 | 0.720 | 1.000 | 0.222 | 1.000 | 1.000 | + live progress and charts; detection unchanged |
 
-The v0.3 rows are identical to v0.2 by design. The dashboard reads the
-report and changes no detection logic, so the numbers cannot move — they
-are recorded here because they were re-measured at that tag, not assumed
-to be unchanged.
+The v0.3 and v0.4 rows are identical to v0.2 by design, and it is worth
+being explicit about why rather than letting a reader assume the eval
+was skipped.
+
+Neither release touched detection. v0.3 added a dashboard that only
+reads the report CSV. v0.4 added a progress callback to `src.main.run`,
+three charts, and a `payment_amount_paise` column on the report — an
+observer, a renderer and an extra output field, none of which can change
+which orders are flagged or how. A test asserts pipeline output is
+byte-identical with and without the callback.
+
+So the numbers *cannot* move, and they are recorded because they were
+**re-measured at each tag** rather than assumed. The agent run for each
+was served entirely from cache (`43 hit / 0 miss`), so these are
+reproductions rather than fresh samples.
 
 Recall is the priority metric — a missed discrepancy is money lost,
 a false positive is a human glance.
